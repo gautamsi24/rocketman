@@ -194,6 +194,21 @@ RLS policy keyed on a JWT tenant claim) — v1 is one tenant by design,
 and building real isolation now would be exactly the speculative
 infrastructure this build's revision explicitly avoided elsewhere.
 
+**Correction from a later audit:** "every read/write goes through our
+own authenticated Route Handlers" above wasn't quite true — `GET
+/api/concepts` and `POST /api/turn-events/process` shipped with no
+auth check at all. `concepts` now calls `getSessionLearnerId()` like
+every other route (401 if unauthenticated; no ownership check needed
+since curriculum is tenant-wide, not learner-scoped). `turn-events/process`
+is a system sweep endpoint rather than a user action, so it's gated
+differently: a shared-secret bearer token (`CRON_SECRET`), matching
+Vercel Cron's convention of auto-sending that header on scheduled
+invocations. Also fixed at the same time: several routes were
+returning raw Supabase error messages (schema/column details) straight
+to the client on unexpected 500s; a shared `serverErrorResponse()`
+helper (`lib/api/error-response.ts`) now logs the real error
+server-side and returns a generic message instead.
+
 ## Prompt injection security
 
 Learner chat input is treated as **untrusted data, never
@@ -217,12 +232,29 @@ defenses, not just a stated policy:
    narrow structured-output schemas, not free-form generation.
 4. **Blast radius containment** — even a successful injection is
    scoped to that one learner's own rows, never cross-learner.
+5. **Stored-insight framing (added after a later audit)** — the four
+   defenses above cover the *inbound* path (raw chat text) but missed a
+   *stored* one: `learner_insights.summary_text`, written once by the
+   Consolidation Agent, gets read back into every future Tutor prompt
+   as trusted context, with the original schema constraining only
+   array length (`max(3)`), not content. A learner who steered a
+   session's phrasing, or a paraphrase the Consolidation Agent
+   produced, could plant instruction-shaped text that resurfaces as
+   part of `# CURRENT LEARNER CONTEXT` in a later session. Closed three
+   ways: each insight string is now capped at 200 chars (not just the
+   array), the Consolidation Agent's prompt explicitly instructs it to
+   emit only plain descriptive statements — never instructions or
+   meta-text, and the Tutor prompt now states outright, immediately
+   before the JSON block, that `# CURRENT LEARNER CONTEXT` is
+   descriptive data and must never be read as a command overriding the
+   constraints above it (standard data/instruction separation).
 
-Honest limitation, not glossed over: there's **no dedicated
-prompt-injection filter or guard model** in front of the Tutor Agent.
-That's a reasonable v1 posture given the contained blast radius above,
-but it's a real gap if this ever handled higher-stakes content or
-untrusted multi-party input.
+Honest limitation, not glossed over: there's still **no dedicated
+prompt-injection filter or guard model** in front of the Tutor Agent —
+point 5 closes the specific stored-context vector found in review, not
+the general case. That's a reasonable v1 posture given the contained
+blast radius above, but it's a real gap if this ever handled
+higher-stakes content or untrusted multi-party input.
 
 ## Provisions for scaling in production
 
@@ -233,7 +265,13 @@ exercises that at demo scale:
 - `turn_events` as a durable event log + pending-sweep is a drop-in
   replacement point for a real message broker (SQS, Cloud Tasks) later
   — the fast-loop/slow-loop *separation* is already the correctness
-  property; only the queue implementation would change.
+  property; only the queue implementation would change. **Correction:**
+  the sweep endpoint (`/api/turn-events/process`) shipped with nothing
+  actually calling it, so the "at-least-once" recovery story was
+  aspirational — a dropped `after()` callback left a `pending` row
+  with no automatic recovery. Fixed with a `vercel.json` cron entry
+  invoking it every 5 minutes, authenticated via `CRON_SECRET` (see
+  the security-section correction above).
 - `bkt_concept_params` as data means recalibrating a concept's
   difficulty from real usage data is an `UPDATE`, not a deploy.
 - The `concept_id` decoupling means a second market/subject is a

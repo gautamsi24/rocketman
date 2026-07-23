@@ -2,6 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Conversation,
   ConversationContent,
@@ -58,6 +59,14 @@ export function ChatWindow({
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
+
+      {status === "error" ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Something went wrong sending that message. Try again.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <PromptInput
         onSubmit={(message) => {

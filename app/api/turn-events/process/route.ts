@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { processTurnEvent } from "@/lib/agents/signal-extraction";
+import { serverErrorResponse } from "@/lib/api/error-response";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 const STALE_THRESHOLD_MS = 30_000;
 
-async function sweep() {
+function isAuthorized(req: Request): boolean {
+  const expected = process.env.CRON_SECRET;
+  if (!expected) return false;
+  return req.headers.get("authorization") === `Bearer ${expected}`;
+}
+
+async function sweep(req: Request) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   const supabase = createServiceRoleClient();
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
 
@@ -14,7 +25,7 @@ async function sweep() {
     .eq("status", "pending")
     .lt("created_at", cutoff);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverErrorResponse(error);
   }
 
   for (const row of pending ?? []) {
@@ -24,10 +35,10 @@ async function sweep() {
   return NextResponse.json({ processed: pending?.length ?? 0 });
 }
 
-export async function GET() {
-  return sweep();
+export async function GET(req: Request) {
+  return sweep(req);
 }
 
-export async function POST() {
-  return sweep();
+export async function POST(req: Request) {
+  return sweep(req);
 }

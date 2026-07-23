@@ -83,6 +83,8 @@ export interface Database {
           content_lo_label: string | null;
           science_practice_code: string | null;
           science_practice_label: string | null;
+          big_idea_code: string | null;
+          big_idea_label: string | null;
           created_at: Timestamp;
         };
         Insert: {
@@ -94,6 +96,8 @@ export interface Database {
           content_lo_label?: string | null;
           science_practice_code?: string | null;
           science_practice_label?: string | null;
+          big_idea_code?: string | null;
+          big_idea_label?: string | null;
           created_at?: Timestamp;
         };
         Update: Partial<Database["public"]["Tables"]["concepts"]["Insert"]>;
@@ -352,6 +356,8 @@ export interface Database {
           concept_id: string;
           prompt_text: string;
           teaching_content: string;
+          frq_archetype: string | null;
+          frq_archetype_source: "editorial_classification" | "verified" | null;
           embedding: string | null;
           created_at: Timestamp;
         };
@@ -361,6 +367,8 @@ export interface Database {
           concept_id: string;
           prompt_text: string;
           teaching_content: string;
+          frq_archetype?: string | null;
+          frq_archetype_source?: "editorial_classification" | "verified" | null;
           embedding?: number[] | null;
           created_at?: Timestamp;
         };

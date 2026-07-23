@@ -63,6 +63,9 @@ export async function POST(req: Request) {
     model: tutorModel,
     instructions: buildTutorInstructions(context),
     messages: await convertToModelMessages(messages),
+    onError: ({ error }) => {
+      console.error("chat stream error", error);
+    },
     onEnd: async ({ text }) => {
       after(async () => {
         const { data: turnEvent, error } = await supabase

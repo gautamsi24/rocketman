@@ -3,6 +3,7 @@ import {
   getAdjacentConceptIds,
   getConceptSummaries,
   getConceptSummary,
+  getSameBigIdeaConceptIds,
 } from "@/lib/curriculum/concepts";
 import { getGroundingContent } from "@/lib/curriculum/content";
 import type { ConceptSummary, CurriculumContentItem } from "@/lib/curriculum/types";
@@ -27,6 +28,7 @@ export interface TutorContext {
   concept: ConceptSummary;
   currentMasteryProb: number;
   shardedMastery: ShardedMasteryEntry[];
+  bigIdeaSiblingMastery: ShardedMasteryEntry[];
   insights: RelevantInsight[];
   misconceptions: ActiveMisconception[];
   groundingContent: CurriculumContentItem[];
@@ -43,10 +45,11 @@ export async function buildTutorContext(
     learnerMessage: string;
   }
 ): Promise<TutorContext> {
-  const [concept, adjacentConceptIds, learner, groundingContent] =
+  const [concept, adjacentConceptIds, bigIdeaConceptIds, learner, groundingContent] =
     await Promise.all([
       getConceptSummary(supabase, params.conceptId),
       getAdjacentConceptIds(supabase, params.conceptId),
+      getSameBigIdeaConceptIds(supabase, params.conceptId),
       getLearner(supabase, params.learnerId),
       getGroundingContent(supabase, params.conceptId),
     ]);
@@ -55,27 +58,36 @@ export async function buildTutorContext(
     throw new Error(`Concept ${params.conceptId} not found`);
   }
 
-  const [memory, adjacentConceptSummaries, tutorProfile] = await Promise.all([
+  const allConceptIds = Array.from(new Set([...adjacentConceptIds, ...bigIdeaConceptIds]));
+
+  const [memory, allConceptSummaries, tutorProfile] = await Promise.all([
     readMemoryContext(supabase, {
       learnerId: params.learnerId,
-      conceptIds: adjacentConceptIds,
+      conceptIds: allConceptIds,
       currentConceptId: params.conceptId,
       queryText: params.learnerMessage,
     }),
-    getConceptSummaries(supabase, adjacentConceptIds),
+    getConceptSummaries(supabase, allConceptIds),
     getTutorProfile(supabase, learner.tenantId),
   ]);
 
   const conceptById = new Map(
-    adjacentConceptSummaries.map((summary) => [summary.id, summary])
+    allConceptSummaries.map((summary) => [summary.id, summary])
   );
 
-  const shardedMastery: ShardedMasteryEntry[] = memory.mastery
-    .map((entry) => {
-      const summary = conceptById.get(entry.conceptId);
-      return summary ? { concept: summary, masteryProb: entry.masteryProb } : null;
-    })
-    .filter((entry): entry is ShardedMasteryEntry => entry !== null);
+  function toShardedEntries(conceptIds: string[]): ShardedMasteryEntry[] {
+    const idSet = new Set(conceptIds);
+    return memory.mastery
+      .filter((entry) => idSet.has(entry.conceptId))
+      .map((entry) => {
+        const summary = conceptById.get(entry.conceptId);
+        return summary ? { concept: summary, masteryProb: entry.masteryProb } : null;
+      })
+      .filter((entry): entry is ShardedMasteryEntry => entry !== null);
+  }
+
+  const shardedMastery = toShardedEntries(adjacentConceptIds);
+  const bigIdeaSiblingMastery = toShardedEntries(bigIdeaConceptIds);
 
   const currentMasteryProb =
     shardedMastery.find((entry) => entry.concept.id === params.conceptId)
@@ -86,6 +98,7 @@ export async function buildTutorContext(
     concept,
     currentMasteryProb,
     shardedMastery,
+    bigIdeaSiblingMastery,
     insights: memory.insights,
     misconceptions: memory.misconceptions,
     groundingContent,

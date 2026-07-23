@@ -13,6 +13,8 @@ function toSummary(row: Database["public"]["Tables"]["concepts"]["Row"]): Concep
     contentLoLabel: row.content_lo_label,
     practiceCode: row.science_practice_code,
     practiceLabel: row.science_practice_label,
+    bigIdeaCode: row.big_idea_code,
+    bigIdeaLabel: row.big_idea_label,
   };
 }
 
@@ -84,4 +86,35 @@ export async function getAdjacentConceptIds(
   for (const row of prerequisites ?? []) adjacentIds.add(row.prerequisite_concept_id);
 
   return Array.from(adjacentIds);
+}
+
+/**
+ * Concepts sharing the same Big Idea but a different unit -- the
+ * cross-unit connections Big Ideas are meant to surface, distinct from
+ * getAdjacentConceptIds's same-unit siblings.
+ */
+export async function getSameBigIdeaConceptIds(
+  supabase: Client,
+  conceptId: string,
+  limit = 2
+): Promise<string[]> {
+  const { data: current, error: currentError } = await supabase
+    .from("concepts")
+    .select("id, unit_code, big_idea_code")
+    .eq("id", conceptId)
+    .single();
+  if (currentError) throw currentError;
+  if (!current.big_idea_code) return [];
+
+  const { data: sameBigIdea, error: sameBigIdeaError } = await supabase
+    .from("concepts")
+    .select("id, unit_code")
+    .eq("big_idea_code", current.big_idea_code)
+    .neq("id", conceptId);
+  if (sameBigIdeaError) throw sameBigIdeaError;
+
+  return (sameBigIdea ?? [])
+    .filter((c) => c.unit_code !== current.unit_code)
+    .slice(0, limit)
+    .map((c) => c.id);
 }

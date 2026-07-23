@@ -13,11 +13,13 @@ import { MasteryHeatmap } from "./MasteryHeatmap";
 import { MisconceptionList } from "./MisconceptionList";
 import { TransparencyFooter } from "./TransparencyFooter";
 import { TrendChart } from "./TrendChart";
+import { Button } from "@/components/ui/button";
 import { useCurrentLearner } from "@/hooks/use-current-learner";
 
 interface ProfileMasteryEntry {
   conceptId: string;
   unitLabel: string | null;
+  bigIdeaLabel: string | null;
   label: string;
   scope: "content" | "practice";
   masteryProb: number;
@@ -47,17 +49,34 @@ interface ProfileResponse {
 export default function ProfilePage() {
   const { learner } = useCurrentLearner();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const loadProfile = useCallback(() => {
     if (!learner) return;
     fetch(`/api/learners/${learner.id}/profile`)
-      .then((res) => res.json())
-      .then(setProfile);
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load profile");
+        return res.json();
+      })
+      .then((data: ProfileResponse) => {
+        setLoadError(false);
+        setProfile(data);
+      })
+      .catch(() => setLoadError(true));
   }, [learner]);
 
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  if (loadError) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your profile.</p>
+        <Button onClick={loadProfile}>Try again</Button>
+      </div>
+    );
+  }
 
   if (!learner || !profile) {
     return <div className="flex flex-1 items-center justify-center p-8">Loading...</div>;

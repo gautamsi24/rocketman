@@ -6,11 +6,14 @@ export interface ConceptSummary {
   contentLoLabel: string | null;
   practiceCode: string | null;
   practiceLabel: string | null;
+  bigIdeaCode: string | null;
+  bigIdeaLabel: string | null;
 }
 
 export interface CurriculumContentItem {
   promptText: string;
   teachingContent: string;
+  frqArchetype: string | null;
 }
 
 export interface MisconceptionCatalogEntry {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverErrorResponse } from "@/lib/api/error-response";
 import { getSessionLearnerId } from "@/lib/auth/dal";
 import { getLearner } from "@/lib/learners/learner";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -18,7 +19,7 @@ export async function POST() {
     .select("id, started_at, status")
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverErrorResponse(error);
   }
 
   return NextResponse.json(session);

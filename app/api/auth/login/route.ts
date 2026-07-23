@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { serverErrorResponse } from "@/lib/api/error-response";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionCookie } from "@/lib/auth/session";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
     .eq("username", username)
     .maybeSingle();
   if (userError) {
-    return NextResponse.json({ error: userError.message }, { status: 500 });
+    return serverErrorResponse(userError);
   }
   if (!user) {
     return NextResponse.json(
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
   if (learnerError) {
-    return NextResponse.json({ error: learnerError.message }, { status: 500 });
+    return serverErrorResponse(learnerError);
   }
   if (!learner) {
     return NextResponse.json(

@@ -9,6 +9,7 @@ export const MASTERY_COMPLETE_THRESHOLD = 0.85;
 export interface ProfileMasteryEntry {
   conceptId: string;
   unitLabel: string | null;
+  bigIdeaLabel: string | null;
   label: string;
   scope: "content" | "practice";
   masteryProb: number;

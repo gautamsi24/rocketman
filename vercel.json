@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/turn-events/process",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

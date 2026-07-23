@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { consolidateSession } from "@/lib/agents/consolidation";
+import { serverErrorResponse } from "@/lib/api/error-response";
 import { getSessionLearnerId } from "@/lib/auth/dal";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
@@ -22,7 +23,7 @@ export async function POST(
     .eq("id", id)
     .maybeSingle();
   if (sessionError) {
-    return NextResponse.json({ error: sessionError.message }, { status: 500 });
+    return serverErrorResponse(sessionError);
   }
   if (!session || session.learner_id !== sessionLearnerId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { serverErrorResponse } from "@/lib/api/error-response";
 import { hashPassword } from "@/lib/auth/password";
 import { createSessionCookie } from "@/lib/auth/session";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
     .eq("username", username)
     .maybeSingle();
   if (existingError) {
-    return NextResponse.json({ error: existingError.message }, { status: 500 });
+    return serverErrorResponse(existingError);
   }
   if (existing) {
     return NextResponse.json(
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     .select("id")
     .single();
   if (userError) {
-    return NextResponse.json({ error: userError.message }, { status: 500 });
+    return serverErrorResponse(userError);
   }
 
   const { data: tenant, error: tenantError } = await supabase
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     .single();
   if (tenantError) {
     await supabase.from("users").delete().eq("id", user.id);
-    return NextResponse.json({ error: tenantError.message }, { status: 500 });
+    return serverErrorResponse(tenantError);
   }
 
   const { data: learner, error: learnerError } = await supabase
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
     .single();
   if (learnerError) {
     await supabase.from("users").delete().eq("id", user.id);
-    return NextResponse.json({ error: learnerError.message }, { status: 500 });
+    return serverErrorResponse(learnerError);
   }
 
   await createSessionCookie(learner.id);

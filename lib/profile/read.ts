@@ -24,6 +24,7 @@ function toProfileMasteryEntry(
   return {
     conceptId: concept.id,
     unitLabel: concept.unitLabel,
+    bigIdeaLabel: concept.bigIdeaLabel,
     label: concept.contentLoLabel ?? concept.practiceLabel ?? "Untitled concept",
     scope: concept.contentLoCode ? "content" : "practice",
     masteryProb: mastery.masteryProb,

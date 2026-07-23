@@ -24,18 +24,31 @@ export function TopicPicker({
   onChange: (conceptId: string) => void;
 }) {
   const [concepts, setConcepts] = useState<ConceptOption[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     fetch("/api/concepts")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load topics");
+        return res.json();
+      })
       .then((data: ConceptOption[]) => {
         setConcepts(data);
         if (!value && data.length > 0) {
           onChange(data[0].id);
         }
-      });
+      })
+      .catch(() => setLoadError(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (loadError) {
+    return (
+      <p className="text-sm text-destructive">
+        Couldn&apos;t load topics. Try refreshing the page.
+      </p>
+    );
+  }
 
   const labelFor = (concept: ConceptOption) =>
     (concept.contentLoLabel ?? concept.practiceLabel ?? "") +
