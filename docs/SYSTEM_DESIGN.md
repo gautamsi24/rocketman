@@ -666,3 +666,123 @@ contract freeze → parallel build → integration → security review → merge
 | `run` | All, during dev | Confirm streaming chat and the profile view work end-to-end, not just that tests pass. |
 | `security-review` | Memory Engine + agent orchestration, before ship | Stores/infers on learner data and gives agents tool access on untrusted chat input — a dedicated pass before ship. |
 | `init` | Once scaffolded | Bootstrap CLAUDE.md so contributors share project context. |
+
+---
+
+## 15. Content coverage: known gap, measured against the real CED
+
+The 13 seeded concepts (§10) were never claimed to be full CED coverage —
+"hand-seeds concepts against this shape rather than ingesting a full item
+bank" (§8). This section makes that gap concrete rather than leaving it as
+an unverified assumption, using College Board's own
+[`ap-biology-course-at-a-glance.pdf`](https://apcentral.collegeboard.org/media/pdf/ap-biology-course-at-a-glance.pdf)
+(the topic-level breakdown per unit, with real exam weighting).
+
+**The real course has ~60 topics across 8 units; this build seeds 13
+concepts.** Breadth is fine — all 8 units have at least one concept — but
+depth is uneven, and the gaps are concentrated in some of the
+*highest-weighted* material on the actual exam:
+
+| Unit | Exam weight | Real topic count | Notably absent |
+|---|---|---|---|
+| 3 — Cellular Energetics | 12–16% | 5 | Photosynthesis, Cellular Respiration — arguably the two most classically-tested AP Bio topics, not represented at all |
+| 6 — Gene Expression and Regulation | 12–16% | 8 | Regulation of Gene Expression, Biotechnology (PCR, gel electrophoresis, CRISPR) |
+| 7 — Natural Selection | 13–20% (highest-weighted unit) | 12 | Hardy–Weinberg Equilibrium (a recurring quantitative FRQ topic), Population Genetics, Phylogeny |
+| 2 — Cells | 10–13% | 10 | Membrane transport/tonicity/osmoregulation (2.4–2.8), cell compartmentalization (2.9–2.10) |
+| 8 — Ecology | 10–15% | 7 | Population/community ecology depth, biodiversity, ecosystem disruption |
+
+**What this means concretely:** a learner who asks the tutor about
+photosynthesis, Hardy-Weinberg calculations, or CRISPR today gets a
+response ungrounded in any retrieved `curriculum_items` row — the Tutor
+Agent's own grounding constraint (§7) means it should decline rather than
+guess, but that's a degraded experience on some of the highest-stakes exam
+content, not an edge case.
+
+**Deliberately not fixed in this pass.** Closing this gap means authoring
+real teaching content, misconception Q&A, and BKT seeds for dozens of new
+topics — a content-authoring effort roughly the size of the original
+seeding pass, not a schema change. It also isn't something to do by
+LLM-generating biology content unreviewed (see §16) — the same grounding
+standard `content_lo_code` is held to elsewhere in this doc should apply
+here too. Recorded as a known, measured gap rather than an assumption.
+
+---
+
+## 16. Future: subject-onboarding agent (deferred, not built)
+
+Raised in discussion, not built — recorded here in the same spirit as §9's
+open questions, so it's a visible future direction rather than a lost
+thread.
+
+**The idea:** as this product considers subjects beyond AP Biology (AP
+Physics, AP Calculus, etc.), the manual process used to seed AP Bio —
+read the official course framework, hand-author concepts and curriculum
+items, classify question archetypes — doesn't scale per-subject. A
+**Curriculum Ingestion Agent** that reads an official course framework
+document and proposes `concepts`/`curriculum_items` rows is the natural
+next agent.
+
+**Why it doesn't fit the existing four-agent model, and what that implies.**
+§7's four agents split on two properties: memory-write trust boundaries
+(only Signal-Extraction/Consolidation write learner memory; Tutor never
+does) and sync/async separation. A Curriculum Ingestion Agent writes
+neither kind of thing — it writes *content that becomes ground truth for
+every learner in that subject*, a higher-stakes write path than anything
+currently automated here. That argues for **draft-and-review, not
+autonomous-write**: the agent proposes rows (grounded with citations back
+to the source framework), staged for human approval before anything
+becomes what the Tutor Agent presents as fact — preserving the same
+checkpoint that caught real mistakes during this build (see below), not
+removing it in the name of automation.
+
+**A concrete cautionary example from this build, not a hypothetical.**
+The `frq_archetype` column (§10's follow-up work) was added with a
+hardcoded `CHECK` constraint listing AP Biology's 6 specific FRQ
+archetypes — a subject-specific rigidity that contradicts §2's own
+`concept_id`-indirection principle (a second subject's different
+archetype taxonomy would need a schema migration, not a data load). This
+was a *human-reviewed* pass — a mapping table read and discussed before
+shipping — and the inconsistency still wasn't caught until a later
+multi-subject question surfaced it. An autonomous ingestion agent
+generating content at volume, without a human reading every mapping
+table, would risk compounding the same class of error across every future
+subject, silently. This is the concrete argument for staged review over
+autonomous writes, not an abstract caution.
+
+**Not scoped further than this.** No staging schema, review workflow, or
+agent prompt has been designed — that's real follow-on work if this
+direction is pursued.
+
+---
+
+## 17. Tutor Agent real tool-calling: topic switching + podcast requests
+
+**Purpose: giving the Tutor Agent a way to actually do things, not just talk
+about them.** Two live-transcript bugs made the same failure mode visible:
+a learner asking to switch units got a tutor that verbally agreed and then
+kept teaching the old concept anyway (§6's `conceptId` was client-driven
+only, invisible to the model), and a learner asking for a podcast got a
+*fabricated* text transcript — stage directions and all — instead of the
+real cached-audio feature that already existed (§13) but that the Tutor
+Agent had no awareness of. Both are instances of one gap: the model could
+only generate text, so anything outside plain Q&A got either ignored or
+hallucinated into a plausible-looking fake.
+
+**The fix, not a workaround.** Two real tool calls, `switch_concept` and
+`share_podcast`, both client-resolved (no server `execute` — the AI SDK
+streams the tool call to the client, which is the only place that can
+actually update `conceptId` React state or play real audio). The model
+picks a target from a new `# AVAILABLE TOPICS` block in its prompt (all 13
+concepts, id + unit + label — cheap, same "costs nothing to have now" cost
+profile as other small additions in this doc) and is explicitly instructed
+never to fabricate a podcast script itself. The client validates every
+tool-call id against a real fetched concept list before acting on it —
+same defense-in-depth principle as Signal-Extraction's misconception-code
+validation (§7): a hallucinated id is rejected, not applied.
+
+**Why this matters beyond fixing two bugs.** This is the first place in
+the app where the Tutor Agent's output can *cause* something instead of
+only describing it. Every future "can the tutor just do X for me" request
+is now a question of "add a validated, client-resolved tool" rather than
+"hope the model's text convincingly describes doing X" — the latter being
+exactly the failure mode both bugs shared.

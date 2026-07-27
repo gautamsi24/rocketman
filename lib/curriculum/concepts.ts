@@ -51,7 +51,9 @@ export async function listConcepts(
   const { data, error } = await supabase
     .from("concepts")
     .select("*")
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .order("unit_code", { ascending: true })
+    .order("content_lo_code", { ascending: true });
   if (error) throw error;
   return (data ?? []).map(toSummary);
 }

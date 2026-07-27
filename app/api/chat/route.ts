@@ -10,6 +10,7 @@ import { tutorModel } from "@/lib/agents/shared/model";
 import { processTurnEvent } from "@/lib/agents/signal-extraction";
 import { buildTutorContext } from "@/lib/agents/tutor/context";
 import { buildTutorInstructions } from "@/lib/agents/tutor/prompt";
+import { sharePodcastTool, switchConceptTool } from "@/lib/agents/tutor/tools";
 import { getSessionLearnerId } from "@/lib/auth/dal";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
     model: tutorModel,
     instructions: buildTutorInstructions(context),
     messages: await convertToModelMessages(messages),
+    tools: { switch_concept: switchConceptTool, share_podcast: sharePodcastTool },
     onError: ({ error }) => {
       console.error("chat stream error", error);
     },

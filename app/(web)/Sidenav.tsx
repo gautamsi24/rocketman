@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/chat", label: "Chat" },
-  { href: "/profile", label: "What the AI knows about me" },
+  { href: "/profile", label: "My progress" },
 ];
 
 export function Sidenav() {

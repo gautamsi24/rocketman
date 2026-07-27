@@ -53,7 +53,11 @@ export default function ChatPage() {
         <PodcastButton conceptId={conceptId} />
       </div>
 
-      <ChatWindow sessionId={sessionId} conceptId={conceptId} />
+      <ChatWindow
+        sessionId={sessionId}
+        conceptId={conceptId}
+        onConceptSwitch={setConceptId}
+      />
     </div>
   );
 }

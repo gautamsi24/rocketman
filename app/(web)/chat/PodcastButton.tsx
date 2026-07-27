@@ -3,6 +3,7 @@
 import { Loader2Icon, Volume2Icon, VolumeXIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { fetchPodcastAudioUrl } from "@/lib/client/podcast-audio";
 
 type Status = "idle" | "loading" | "playing";
 
@@ -30,11 +31,7 @@ export function PodcastButton({ conceptId }: { conceptId: string | null }) {
 
     setStatus("loading");
     try {
-      const res = await fetch(`/api/concepts/${conceptId}/podcast`);
-      if (!res.ok) throw new Error("Podcast request failed");
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const url = await fetchPodcastAudioUrl(conceptId);
       urlRef.current = url;
 
       const audio = new Audio(url);

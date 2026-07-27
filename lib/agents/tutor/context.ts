@@ -4,6 +4,7 @@ import {
   getConceptSummaries,
   getConceptSummary,
   getSameBigIdeaConceptIds,
+  listConcepts,
 } from "@/lib/curriculum/concepts";
 import { getGroundingContent } from "@/lib/curriculum/content";
 import type { ConceptSummary, CurriculumContentItem } from "@/lib/curriculum/types";
@@ -29,6 +30,7 @@ export interface TutorContext {
   currentMasteryProb: number;
   shardedMastery: ShardedMasteryEntry[];
   bigIdeaSiblingMastery: ShardedMasteryEntry[];
+  availableTopics: ConceptSummary[];
   insights: RelevantInsight[];
   misconceptions: ActiveMisconception[];
   groundingContent: CurriculumContentItem[];
@@ -60,7 +62,7 @@ export async function buildTutorContext(
 
   const allConceptIds = Array.from(new Set([...adjacentConceptIds, ...bigIdeaConceptIds]));
 
-  const [memory, allConceptSummaries, tutorProfile] = await Promise.all([
+  const [memory, allConceptSummaries, tutorProfile, availableTopics] = await Promise.all([
     readMemoryContext(supabase, {
       learnerId: params.learnerId,
       conceptIds: allConceptIds,
@@ -69,6 +71,7 @@ export async function buildTutorContext(
     }),
     getConceptSummaries(supabase, allConceptIds),
     getTutorProfile(supabase, learner.tenantId),
+    listConcepts(supabase, learner.tenantId),
   ]);
 
   const conceptById = new Map(
@@ -99,6 +102,7 @@ export async function buildTutorContext(
     currentMasteryProb,
     shardedMastery,
     bigIdeaSiblingMastery,
+    availableTopics,
     insights: memory.insights,
     misconceptions: memory.misconceptions,
     groundingContent,
