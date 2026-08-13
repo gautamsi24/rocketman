@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { generateCheckQuestion } from "@/lib/agents/qna/generate";
 import { serverErrorResponse } from "@/lib/api/error-response";
@@ -6,18 +5,13 @@ import { forbidden, requireLearnerContext } from "@/lib/api/guards";
 import { getConceptSummary, getConceptTenantId } from "@/lib/curriculum/concepts";
 import { getGroundingContent } from "@/lib/curriculum/content";
 import { conceptLabel } from "@/lib/curriculum/labels";
+import { questionHash } from "@/lib/curriculum/question-hash";
 import {
   getActiveMisconceptions,
   getMasteryForConcepts,
 } from "@/lib/memory/profile-read";
 
 export const maxDuration = 30;
-
-function questionKey(question: string): string {
-  return createHash("sha256")
-    .update(question.trim().toLowerCase())
-    .digest("hex");
-}
 
 export async function GET(
   _req: Request,
@@ -43,7 +37,7 @@ export async function GET(
         learner_id: learnerId,
         concept_id: conceptId,
         question_text: question,
-        question_hash: questionKey(question),
+        question_hash: questionHash(question),
       })
       .select("id")
       .single();

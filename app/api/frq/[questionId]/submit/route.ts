@@ -1,10 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { gradeFrqAnswer } from "@/lib/agents/frq/grade";
 import { serverErrorResponse } from "@/lib/api/error-response";
 import { forbidden, requireLearnerContext } from "@/lib/api/guards";
 import { getGroundingContent } from "@/lib/curriculum/content";
 import { getFrqQuestion } from "@/lib/curriculum/frq";
-import { applyGradedUpdate } from "@/lib/memory/profile-write";
+import { getCandidateMisconceptions } from "@/lib/curriculum/misconceptions";
+import {
+  applyGradedUpdate,
+  recordMisconceptionEvidence,
+} from "@/lib/memory/profile-write";
 
 export const maxDuration = 60;
 
@@ -76,17 +81,24 @@ export async function POST(
     const file = imageFile as File;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const mediaType = file.type || "image/jpeg";
-    imagePath = `${learner.tenantId}/${learnerId}/${questionId}.${extension(mediaType)}`;
+    // Unique per submission attempt, not just per question -- two concurrent
+    // submissions (double-click, flaky-network retry) must never write to the
+    // same path, or whichever upload finishes last silently overwrites the
+    // other regardless of which one actually wins the answered_at claim below.
+    imagePath = `${learner.tenantId}/${learnerId}/${questionId}-${randomUUID()}.${extension(mediaType)}`;
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(imagePath, bytes, { contentType: mediaType, upsert: true });
+      .upload(imagePath, bytes, { contentType: mediaType });
     if (uploadError) {
       return serverErrorResponse(uploadError);
     }
     image = { data: bytes, mediaType };
   }
 
-  const items = await getGroundingContent(supabase, question.conceptId);
+  const [items, candidateMisconceptions] = await Promise.all([
+    getGroundingContent(supabase, question.conceptId),
+    getCandidateMisconceptions(supabase, learner.tenantId, question.conceptId),
+  ]);
   const reference = items.map((item) => item.teachingContent).join("\n\n");
 
   let grade;
@@ -99,6 +111,7 @@ export async function POST(
       reference,
       answerText,
       image,
+      candidateMisconceptions,
     });
   } catch (err) {
     return serverErrorResponse(err);
@@ -108,9 +121,9 @@ export async function POST(
     question.maxPoints > 0 &&
     grade.awardedPoints / question.maxPoints >= CORRECT_THRESHOLD;
 
-  // Stamp the answer onto the question row (server-issued question answered in
-  // place). answered_at is null-guarded so a concurrent double-submit can't
-  // grade twice.
+  // Claim the question atomically -- answered_at is null-guarded so a
+  // genuinely concurrent double-submit only ever lets one request through to
+  // the memory write below, same as before.
   const { data: stamped, error: stampError } = await supabase
     .from("frq_questions")
     .update({
@@ -129,9 +142,6 @@ export async function POST(
   }
   const counted = (stamped?.length ?? 0) > 0;
 
-  // Feed the deterministic BKT engine only on the first grade. A failure here
-  // shouldn't lose the score already stamped above, so it doesn't fail the
-  // request.
   if (counted) {
     try {
       await applyGradedUpdate(supabase, {
@@ -140,8 +150,42 @@ export async function POST(
         conceptId: question.conceptId,
         correct,
       });
+
+      // Same misconception-evidence path chat turns feed (Signal-Extraction)
+      // -- an FRQ answer is just another source of graded evidence, not a
+      // separate signal the profile has to reconcile on its own.
+      const candidateByCode = new Map(candidateMisconceptions.map((m) => [m.code, m]));
+      for (const code of grade.matchedMisconceptionCodes) {
+        const misconception = candidateByCode.get(code);
+        if (!misconception) continue;
+        await recordMisconceptionEvidence(supabase, {
+          tenantId: learner.tenantId,
+          learnerId,
+          misconceptionId: misconception.id,
+        });
+      }
     } catch (err) {
-      console.error("FRQ mastery update failed", err);
+      // The claim above already stamped the question, but the memory write
+      // it was supposed to produce didn't happen -- unlike check-answer
+      // (which applies the memory write before stamping and can just leave
+      // the row untouched on failure), FRQ's claim step and memory write
+      // can't be one atomic operation without a DB transaction the current
+      // Supabase client setup doesn't have. Compensate instead: unstamp the
+      // row so the learner sees a real error and a retry re-grades cleanly,
+      // rather than a permanently "answered" question with a silently lost
+      // mastery/misconception update.
+      await supabase
+        .from("frq_questions")
+        .update({
+          answered_at: null,
+          answer_text: null,
+          image_path: null,
+          awarded_points: null,
+          correct: null,
+          points_detail: null,
+        })
+        .eq("id", questionId);
+      return serverErrorResponse(err);
     }
   }
 

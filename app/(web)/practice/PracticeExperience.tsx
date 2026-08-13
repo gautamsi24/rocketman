@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FrqQuestion } from "./FrqQuestion";
 import { Button } from "@/components/ui/button";
 import { TASK_WORD_LIST } from "@/lib/curriculum/frq-task-words";
-import type { FrqSet } from "@/lib/curriculum/frq";
+import type { FrqAttemptResult, FrqSet } from "@/lib/curriculum/frq";
 
 export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }) {
   const [set, setSet] = useState<FrqSet | null>(initialSet);
@@ -45,9 +45,25 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
     }
   }, [noPending, generating, generate]);
 
-  const handleGraded = useCallback((questionId: string, awarded: number) => {
-    setEarned((prev) => ({ ...prev, [questionId]: awarded }));
-  }, []);
+  const handleGraded = useCallback(
+    (questionId: string, attempt: FrqAttemptResult) => {
+      setEarned((prev) => ({ ...prev, [questionId]: attempt.awardedPoints }));
+      // Patch the graded question's attempt into `set` itself, not just the
+      // local `earned` map -- `noPending` reads set.questions[].attempt, so
+      // without this the auto-continue-to-a-new-set effect never fires.
+      setSet((prev) =>
+        prev
+          ? {
+              ...prev,
+              questions: prev.questions.map((q) =>
+                q.id === questionId ? { ...q, attempt } : q
+              ),
+            }
+          : prev
+      );
+    },
+    []
+  );
 
   const progress = useMemo(() => {
     if (!set) return { answered: 0, total: 0, pointsAwarded: 0, pointsPossible: 0 };

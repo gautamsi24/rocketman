@@ -87,7 +87,11 @@ export async function buildJourney(
       blockedBy,
     };
 
-    const unitKey = concept.unitCode!;
+    // The DB only guarantees content_lo_code OR science_practice_code is set
+    // (concept_has_an_axis), never that unit_code accompanies content_lo_code
+    // -- a content concept with no unit is legal, so this can't be a bare
+    // non-null assertion.
+    const unitKey = concept.unitCode ?? "Untitled unit";
     const unit = unitByKey.get(unitKey) ?? {
       unitCode: concept.unitCode,
       unitLabel: concept.unitLabel ?? unitKey,

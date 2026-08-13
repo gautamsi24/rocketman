@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -37,6 +38,14 @@ export function MisconceptionList({
               Seen {m.evidenceCount} {m.evidenceCount === 1 ? "time" : "times"} -- last on{" "}
               {new Date(m.lastObservedAt).toLocaleDateString()}
             </p>
+            {m.scope === "practice" && (
+              <Link
+                href="/practice"
+                className="w-fit text-xs font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Practice this in FRQs →
+              </Link>
+            )}
           </CardContent>
         </Card>
       ))}

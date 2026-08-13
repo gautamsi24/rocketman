@@ -1,10 +1,11 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateFrqQuestion } from "@/lib/agents/frq/generate";
 import type { Database } from "@/lib/supabase/types";
 import { getGroundingContent } from "./content";
 import { conceptLabel } from "./labels";
 import { listConcepts } from "./concepts";
+import { questionHash } from "./question-hash";
 import { getMasteryForConcepts } from "@/lib/memory/profile-read";
 
 type Client = SupabaseClient<Database>;
@@ -78,12 +79,6 @@ const SET_SLOTS: { kind: FrqKind; requiresDiagram: boolean }[] = [
   { kind: "short", requiresDiagram: false },
   { kind: "short", requiresDiagram: false },
 ];
-
-function promptHash(prompt: string): string {
-  return createHash("sha256")
-    .update(prompt.trim().toLowerCase())
-    .digest("hex");
-}
 
 function toAttempt(
   row: Database["public"]["Tables"]["frq_questions"]["Row"]
@@ -249,7 +244,7 @@ export async function generateFrqSet(
         task_word: q.taskWord,
         stimulus: q.stimulus,
         prompt: q.prompt,
-        prompt_hash: promptHash(q.prompt),
+        prompt_hash: questionHash(q.prompt),
         rubric: q.rubric,
         max_points: q.maxPoints,
       };

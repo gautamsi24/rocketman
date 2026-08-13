@@ -21,7 +21,7 @@ function textColorFor(masteryProb: number): string {
 
 function groupKeyFor(entry: MasteryHeatmapEntry, groupBy: GroupBy): string {
   const label = groupBy === "unit" ? entry.unitLabel : entry.bigIdeaLabel;
-  return label ?? "Practice skills";
+  return label ?? "Untitled";
 }
 
 function Tile({ entry }: { entry: MasteryHeatmapEntry }) {
@@ -41,7 +41,7 @@ function Tile({ entry }: { entry: MasteryHeatmapEntry }) {
       >
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium uppercase tracking-wide opacity-80">
-            {entry.scope === "practice" ? "Practice skill" : entry.unitLabel ?? "Content"}
+            {entry.unitLabel ?? "Content"}
           </span>
           <span className="text-lg font-semibold tabular-nums">{pct}%</span>
         </div>
@@ -75,13 +75,6 @@ export function MasteryHeatmap({ mastery }: { mastery: MasteryHeatmapEntry[] }) 
     const list = groups.get(key) ?? [];
     list.push(entry);
     groups.set(key, list);
-  }
-  // "Practice skills" (entries with no unit/Big Idea) reads best last, not
-  // wherever it happened to first appear in the input order.
-  const practiceEntries = groups.get("Practice skills");
-  if (practiceEntries) {
-    groups.delete("Practice skills");
-    groups.set("Practice skills", practiceEntries);
   }
 
   return (

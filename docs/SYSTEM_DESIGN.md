@@ -786,3 +786,94 @@ only describing it. Every future "can the tutor just do X for me" request
 is now a question of "add a validated, client-resolved tool" rather than
 "hope the model's text convincingly describes doing X" — the latter being
 exactly the failure mode both bugs shared.
+
+---
+
+## 18. Practice FRQs join the graded-evidence write path
+
+**Correction to §6/§7's framing:** those sections describe Signal-
+Extraction (plus the trusted assertion endpoint) as the complete list of
+things allowed to write `concept_mastery`/`learner_misconceptions`. That's
+no longer accurate — Practice FRQ submission (`/api/frq/[questionId]/
+submit`) is a third path, added deliberately rather than discovered as a
+gap. The real invariant was never "only one named agent," it's "only
+narrow, validated, structured-output LLM calls the Tutor Agent itself
+never touches" — FRQ grading satisfies that bar the same way
+Signal-Extraction does, so it earns the same trust.
+
+**Why misconception detection had to move into the grading call itself,
+not sit beside it.** `gradeFrqAnswer` originally only judged rubric
+correctness — an FRQ answer could feed BKT mastery but never touched
+`learner_misconceptions`, unlike a chat turn. The fix wasn't a second
+classification pass mirroring Signal-Extraction's chat-turn shape (a
+separate `generateText` call re-supplying the same question/reference/
+rubric context, plus re-sending any attached diagram image) — that
+would double the cost and latency of every submission to re-derive
+judgments the grading call already has the full picture for. Instead
+`gradeFrqAnswer` now takes the same concept-scoped candidate list
+`getCandidateMisconceptions` already produces for chat, and returns
+`matchedMisconceptionCodes` from the *same* pass that grades the rubric
+— one coherent judgment over the answer (and image, when present)
+instead of two independent ones. Codes are constrained by a zod enum
+against the real candidate list and re-validated before
+`recordMisconceptionEvidence` is called, the same defense-in-depth
+Signal-Extraction uses (§7).
+
+**A known asymmetry, not silently left inconsistent:** the Quick-check
+flow (`gradeCheckAnswer`, `/api/concepts/[id]/check-answer`) still only
+judges correctness — it has the identical gap FRQ grading had before
+this fix, and hasn't been extended yet. Recorded here so it reads as a
+tracked gap, not an oversight discovered later.
+
+**Why this also closed a UI dead end.** The Profile page's Misconceptions
+tab already labeled `scope: practice` misconceptions "Reasoning pattern"
+with a link to `/practice` — but until this fix, nothing a learner did on
+that page could ever change the badge that sent them there. The link
+now points at a mechanism that actually feeds the same evidence loop
+chat turns do, not just a suggestion with no feedback path behind it.
+
+---
+
+## 19. Profile page: trend/mastery consistency and chart legibility
+
+Two related fixes to the profile view's Trend tab, found by actually
+comparing numbers across tabs rather than assuming they'd agree.
+
+**The Mastery tab and Trend tab silently disagreed.** `getMasteryForConcepts`
+(Mastery tab) applies read-time decay (§4.B); `getMasteryTrend` (Trend
+tab) returns the raw, undecayed value straight from
+`concept_mastery_history` — correct for what each was built to answer,
+but the Trend tab's "current %" was using the raw historical value to
+answer the *same* "what's your mastery right now" question the Mastery
+tab already answers correctly. Measured on a real account before fixing
+anything: 27 of 28 topics disagreed, by the exact amount of decay
+accrued since each was last practiced. Fixed by making the Mastery tab's
+decayed value the single source of truth everywhere it's displayed —
+the Trend tab's badge, color, and delta all read it now, with a visible
+decay tail appended to the sparkline when it differs from the last
+graded point, so the line and the badge next to it never show two
+different numbers for the same topic.
+
+**The trend chart stopped being one shared multi-line chart.** With up
+to 28 topics, one `LineChart` sharing a merged category axis meant this
+app's 8-color categorical palette was silently repeating hues past the
+8th series — two unrelated topics could render in the identical color
+with no way to tell them apart. Per the dataviz skill's series-count
+ladder (past 7–8 series, fold into small multiples), the Trend tab is
+now a grid of one sparkline tile per topic, each independently colored
+by its own current mastery on the same sequential ramp the Mastery
+heatmap uses — scales to any topic count without two topics ever
+sharing a color, and ties the two tabs' color language together instead
+of running two different palettes on one page.
+
+**Practice-scope topics were also pulled from the Mission Map and
+Profile mastery views.** Once Practice FRQs (§18) became the real venue
+for exercising cross-cutting science-practice skills, the "Practice
+skills" pseudo-unit that used to appear in the Journey mission map
+(`lib/journey/read.ts`) and the Profile mastery heatmap was a second,
+confusing venue tracking the same thing with no connection to where a
+learner would actually go to work on it. Both views now filter to
+`scope: content` only; the underlying practice-scope `concept_mastery`
+rows and misconceptions still exist and are still tracked (§18 depends
+on them), they're just no longer surfaced as something to "complete" in
+either view.

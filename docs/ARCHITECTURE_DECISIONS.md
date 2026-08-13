@@ -91,9 +91,18 @@ place to hit rate limits/deprecations instead of three.
   correctness (`correct`/`incorrect`/`not_gradable` — three states, not
   boolean, so a question or acknowledgment never injects false BKT
   evidence) and matches misconception codes, defense-in-depth validated
-  against the real candidate list before anything is trusted. Only this
-  agent (plus the trusted assertion endpoint) is allowed to write
-  `concept_mastery`.
+  against the real candidate list before anything is trusted.
+  **Correction:** this was originally the only agent (plus the trusted
+  assertion endpoint) allowed to write `concept_mastery`/
+  `learner_misconceptions` — that's no longer the complete list. Practice
+  FRQ submission now writes both too, via the same defense-in-depth
+  validation, folded into the rubric-grading call itself rather than a
+  second classification pass (see `gradeFrqAnswer` below). The real
+  invariant was always "narrow, validated, structured-output LLM calls
+  the Tutor Agent never touches," not literally one named agent — Quick
+  check (`gradeCheckAnswer`) still only judges correctness and hasn't
+  been extended to misconceptions yet, a known, tracked asymmetry, not
+  an oversight.
 - **Consolidation Agent** (async, end-of-session) — needs the *whole*
   conversation, not a single turn, to extract 0–3 durable style/
   reasoning insights. Explicitly instructed not to restate

@@ -1,11 +1,15 @@
 "use client";
 
 import { CheckIcon, XIcon } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { FrqSetQuestion, FrqScoredPoint } from "@/lib/curriculum/frq";
+import type {
+  FrqAttemptResult,
+  FrqSetQuestion,
+  FrqScoredPoint,
+} from "@/lib/curriculum/frq";
 import { cn } from "@/lib/utils";
 
 interface Verdict {
@@ -34,7 +38,7 @@ export function FrqQuestion({
   onGraded,
 }: {
   question: FrqSetQuestion;
-  onGraded: (questionId: string, awardedPoints: number) => void;
+  onGraded: (questionId: string, attempt: FrqAttemptResult) => void;
 }) {
   const initialVerdict = attemptToVerdict(question);
   const [answer, setAnswer] = useState(question.attempt?.answerText ?? "");
@@ -46,13 +50,27 @@ export function FrqQuestion({
   const [verdict, setVerdict] = useState<Verdict | null>(initialVerdict);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Mirrors imageUrl for the unmount-cleanup effect below, which needs the
+  // latest value in a stable closure without re-subscribing on every change.
+  const imageUrlRef = useRef<string | null>(null);
 
   const onPickImage = useCallback((file: File | null) => {
     setImage(file);
     setImageUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      return file ? URL.createObjectURL(file) : null;
+      const next = file ? URL.createObjectURL(file) : null;
+      imageUrlRef.current = next;
+      return next;
     });
+  }, []);
+
+  // The picked-image preview is a blob: URL -- revoke it on unmount (e.g.
+  // "New set" remounts every question via key={question.id}), not just when
+  // replaced by a different picked image.
+  useEffect(() => {
+    return () => {
+      if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
+    };
   }, []);
 
   const submit = useCallback(async () => {
@@ -77,7 +95,16 @@ export function FrqQuestion({
       const graded = (await res.json()) as Verdict & { counted: boolean };
       setVerdict(graded);
       setStatus("graded");
-      if (graded.counted) onGraded(question.id, graded.awardedPoints);
+      if (graded.counted) {
+        onGraded(question.id, {
+          awardedPoints: graded.awardedPoints,
+          maxPoints: graded.maxPoints,
+          correct: graded.correct,
+          points: graded.points,
+          answerText: answer || null,
+          hasImage: !!image,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Grading failed");
       setStatus("idle");

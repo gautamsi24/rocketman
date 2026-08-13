@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getSessionLearnerId } from "@/lib/auth/dal";
-import { getLearner, type LearnerProfile } from "@/lib/learners/learner";
+import { getLearnerOrNull, type LearnerProfile } from "@/lib/learners/learner";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import { serverErrorResponse } from "./error-response";
@@ -47,6 +47,22 @@ export interface LearnerContext {
 }
 
 /**
+ * Shared by requireLearnerContext/requireLearnerOwnsContext below. Uses
+ * getLearnerOrNull rather than getLearner deliberately: a session cookie can
+ * outlive its learner row (e.g. a DB reset), and this runs before a route's
+ * own body validation -- a throw here would surface as an unhandled 500
+ * instead of the clean 401 a stale-but-signed session should produce.
+ */
+async function buildLearnerContext(
+  learnerId: string
+): Promise<LearnerContext | NextResponse> {
+  const supabase = createServiceRoleClient();
+  const learner = await getLearnerOrNull(supabase, learnerId);
+  if (!learner) return unauthorized();
+  return { learnerId, learner, supabase };
+}
+
+/**
  * The common "resolve the session learner, then load their learner row" shape
  * nearly every route needs. Callers do:
  *   const ctx = await requireLearnerContext();
@@ -56,10 +72,7 @@ export interface LearnerContext {
 export async function requireLearnerContext(): Promise<LearnerContext | NextResponse> {
   const learnerId = await requireLearnerId();
   if (learnerId instanceof NextResponse) return learnerId;
-
-  const supabase = createServiceRoleClient();
-  const learner = await getLearner(supabase, learnerId);
-  return { learnerId, learner, supabase };
+  return buildLearnerContext(learnerId);
 }
 
 /**
@@ -71,10 +84,7 @@ export async function requireLearnerOwnsContext(
 ): Promise<LearnerContext | NextResponse> {
   const learnerId = await requireLearnerOwns(resourceLearnerId);
   if (learnerId instanceof NextResponse) return learnerId;
-
-  const supabase = createServiceRoleClient();
-  const learner = await getLearner(supabase, learnerId);
-  return { learnerId, learner, supabase };
+  return buildLearnerContext(learnerId);
 }
 
 /**

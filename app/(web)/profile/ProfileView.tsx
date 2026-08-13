@@ -24,18 +24,30 @@ export function ProfileView({
 }) {
   const router = useRouter();
 
-  const trendWithLabels = profile.trend.map((series) => ({
-    ...series,
-    label:
-      profile.mastery.find((m) => m.conceptId === series.conceptId)?.label ??
-      series.conceptId,
-  }));
-
-  // Unit topics drive completion; science practices are a separate track.
+  // Unit topics drive completion. Science practices (cross-cutting reasoning
+  // skills) are excluded from this page entirely -- students exercise those
+  // under Practice FRQs, not by tracking a "practice skills" mastery bar here.
   const contentMastery = profile.mastery.filter((m) => m.scope === "content");
-  const practiceMastery = profile.mastery.filter((m) => m.scope === "practice");
   const contentCompleted = contentMastery.filter((m) => m.isComplete).length;
-  const practiceCompleted = practiceMastery.filter((m) => m.isComplete).length;
+  const contentConceptIds = new Set(contentMastery.map((m) => m.conceptId));
+
+  // currentMasteryProb is the same decayed value the Mastery tab shows for
+  // this concept -- the trend's own last history point is the raw, undecayed
+  // value as of whenever it was last graded, which drifts from the Mastery
+  // tab's number the longer a topic goes unpracticed. Carrying the decayed
+  // value through here is what keeps the two tabs from ever disagreeing.
+  const trendWithLabels = profile.trend
+    .filter((series) => contentConceptIds.has(series.conceptId))
+    .map((series) => {
+      const entry = contentMastery.find((m) => m.conceptId === series.conceptId);
+      return {
+        ...series,
+        label: entry?.label ?? series.conceptId,
+        currentMasteryProb:
+          entry?.masteryProb ??
+          series.points[series.points.length - 1].masteryProb,
+      };
+    });
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
@@ -43,9 +55,6 @@ export function ProfileView({
         <h1 className="text-xl font-semibold">What RocketMan knows about you</h1>
         <p className="text-sm text-muted-foreground">
           {contentCompleted} of {contentMastery.length} topics completed
-          {practiceMastery.length > 0
-            ? ` · ${practiceCompleted}/${practiceMastery.length} practice skills`
-            : ""}
         </p>
       </div>
 
@@ -58,10 +67,10 @@ export function ProfileView({
         </TabsList>
 
         <TabsContent value="mastery" className="flex flex-col gap-3">
-          <MasteryHeatmap mastery={profile.mastery} />
+          <MasteryHeatmap mastery={contentMastery} />
           <AssertMasteryDialog
             learnerId={learnerId}
-            concepts={profile.mastery.map((m) => ({
+            concepts={contentMastery.map((m) => ({
               conceptId: m.conceptId,
               label: m.label,
             }))}
@@ -82,7 +91,7 @@ export function ProfileView({
         </TabsContent>
       </Tabs>
 
-      <TransparencyFooter mastery={profile.mastery} />
+      <TransparencyFooter mastery={contentMastery} />
     </div>
   );
 }
