@@ -916,6 +916,7 @@ const CALIBRATED_HARD_CONCEPTS = new Set([
 // Every tenant-scoped table, ordered children-before-parents so a wipe never
 // violates a foreign key.
 const TENANT_TABLES = [
+  "frq_questions",
   "qna_attempts",
   "turn_events",
   "learner_insights",
@@ -1221,6 +1222,9 @@ async function main() {
     if (error) throw error;
   }
   console.log(`Created ${CURRICULUM_ITEMS.length} curriculum items`);
+
+  // FRQ practice questions are generated per learner on demand (grounded in
+  // curriculum content, targeting weak concepts) -- nothing to seed here.
 
   for (const account of DEMO_ACCOUNTS) {
     await seedDemoAccount(supabase, {

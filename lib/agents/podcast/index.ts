@@ -23,16 +23,9 @@ function buildScriptPrompt(label: string, groundingText: string): string {
 
 export async function getOrCreatePodcast(
   supabase: Client,
-  conceptId: string
+  conceptId: string,
+  tenantId: string
 ): Promise<{ audio: Uint8Array; mediaType: string }> {
-  const { data: concept, error: conceptError } = await supabase
-    .from("concepts")
-    .select("tenant_id")
-    .eq("id", conceptId)
-    .single();
-  if (conceptError) throw conceptError;
-  const tenantId = concept.tenant_id;
-
   const { data: existing, error: existingError } = await supabase
     .from("concept_podcasts")
     .select("audio_path")

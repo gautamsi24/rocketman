@@ -11,7 +11,7 @@ import { processTurnEvent } from "@/lib/agents/signal-extraction";
 import { buildTutorContext } from "@/lib/agents/tutor/context";
 import { buildTutorInstructions } from "@/lib/agents/tutor/prompt";
 import { sharePodcastTool, switchConceptTool } from "@/lib/agents/tutor/tools";
-import { forbidden, requireLearnerId } from "@/lib/api/guards";
+import { requireLearnerId, requireSessionOwner } from "@/lib/api/guards";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
@@ -41,14 +41,8 @@ export async function POST(req: Request) {
 
   const supabase = createServiceRoleClient();
 
-  const { data: session, error: sessionError } = await supabase
-    .from("sessions")
-    .select("learner_id")
-    .eq("id", sessionId)
-    .maybeSingle();
-  if (sessionError || !session || session.learner_id !== learnerId) {
-    return forbidden();
-  }
+  const ownershipError = await requireSessionOwner(supabase, sessionId, learnerId);
+  if (ownershipError) return ownershipError;
 
   const learnerMessage = getLatestUserText(messages);
 

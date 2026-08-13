@@ -166,15 +166,6 @@ export function MissionMap({
             {journey.contentMastered}/{journey.contentTotal} topics
           </span>
         </div>
-        {journey.practiceTotal > 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Practice skills:{" "}
-            <span className="tabular-nums">
-              {journey.practiceMastered}/{journey.practiceTotal}
-            </span>{" "}
-            · tracked separately from unit completion
-          </p>
-        ) : null}
       </header>
 
       <div className="flex flex-col gap-6">

@@ -25,10 +25,9 @@ export interface JourneyUnit {
 
 export interface JourneyResponse {
   units: JourneyUnit[];
-  /** Unit topics (scope: content) -- these drive completion. */
+  /** Unit topics (scope: content) -- these drive completion. Cross-cutting
+   * science practices (scope: practice) are excluded from the mission map
+   * entirely; students exercise those under Practice FRQs instead. */
   contentMastered: number;
   contentTotal: number;
-  /** Cross-cutting science practices (scope: practice) -- a separate track. */
-  practiceMastered: number;
-  practiceTotal: number;
 }

@@ -2,16 +2,14 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { generateCheckQuestion } from "@/lib/agents/qna/generate";
 import { serverErrorResponse } from "@/lib/api/error-response";
-import { forbidden, requireLearnerId } from "@/lib/api/guards";
-import { getConceptSummary } from "@/lib/curriculum/concepts";
+import { forbidden, requireLearnerContext } from "@/lib/api/guards";
+import { getConceptSummary, getConceptTenantId } from "@/lib/curriculum/concepts";
 import { getGroundingContent } from "@/lib/curriculum/content";
 import { conceptLabel } from "@/lib/curriculum/labels";
-import { getLearner } from "@/lib/learners/learner";
 import {
   getActiveMisconceptions,
   getMasteryForConcepts,
 } from "@/lib/memory/profile-read";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
 
@@ -25,12 +23,11 @@ export async function GET(
   _req: Request,
   ctx: RouteContext<"/api/concepts/[id]/check-question">
 ) {
-  const learnerId = await requireLearnerId();
-  if (learnerId instanceof NextResponse) return learnerId;
+  const auth = await requireLearnerContext();
+  if (auth instanceof NextResponse) return auth;
+  const { learnerId, learner, supabase } = auth;
 
   const { id: conceptId } = await ctx.params;
-  const supabase = createServiceRoleClient();
-  const learner = await getLearner(supabase, learnerId);
 
   // Persist every question we hand out and return only its id -- check-answer
   // accepts that id, never client-supplied text, so the server always knows
@@ -43,7 +40,7 @@ export async function GET(
       .from("qna_attempts")
       .insert({
         tenant_id: learner.tenantId,
-        learner_id: learnerId as string,
+        learner_id: learnerId,
         concept_id: conceptId,
         question_text: question,
         question_hash: questionKey(question),
@@ -57,15 +54,11 @@ export async function GET(
   }
 
   // Never read another tenant's curriculum content.
-  const { data: conceptRow, error: conceptError } = await supabase
-    .from("concepts")
-    .select("tenant_id")
-    .eq("id", conceptId)
-    .maybeSingle();
-  if (conceptError || !conceptRow) {
+  const conceptTenantId = await getConceptTenantId(supabase, conceptId);
+  if (!conceptTenantId) {
     return issue(null);
   }
-  if (conceptRow.tenant_id !== learner.tenantId) {
+  if (conceptTenantId !== learner.tenantId) {
     return forbidden();
   }
 

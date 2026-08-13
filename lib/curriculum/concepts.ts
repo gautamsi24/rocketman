@@ -18,6 +18,25 @@ function toSummary(row: Database["public"]["Tables"]["concepts"]["Row"]): Concep
   };
 }
 
+/**
+ * Just the tenant_id, for routes that need to verify a concept belongs to the
+ * caller's tenant before doing anything more expensive with it. Returns null
+ * if the concept doesn't exist -- callers decide what that means (404, or a
+ * softer fallback).
+ */
+export async function getConceptTenantId(
+  supabase: Client,
+  conceptId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("concepts")
+    .select("tenant_id")
+    .eq("id", conceptId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.tenant_id;
+}
+
 export async function getConceptSummary(
   supabase: Client,
   conceptId: string

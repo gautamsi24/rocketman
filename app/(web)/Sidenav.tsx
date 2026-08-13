@@ -9,6 +9,7 @@ type Role = "learner" | "tutor" | "evaluator";
 
 const LEARNER_NAV = [
   { href: "/journey", label: "Mission map" },
+  { href: "/practice", label: "Practice FRQs" },
   { href: "/profile", label: "My progress" },
 ];
 

@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/api/error-response";
-import { requireLearnerId } from "@/lib/api/guards";
-import { getLearner } from "@/lib/learners/learner";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireLearnerContext } from "@/lib/api/guards";
 
 export async function POST() {
-  const learnerId = await requireLearnerId();
-  if (learnerId instanceof NextResponse) return learnerId;
-
-  const supabase = createServiceRoleClient();
-  const learner = await getLearner(supabase, learnerId);
+  const auth = await requireLearnerContext();
+  if (auth instanceof NextResponse) return auth;
+  const { learner, supabase } = auth;
 
   const { data: session, error } = await supabase
     .from("sessions")

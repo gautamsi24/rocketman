@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { consolidateSession } from "@/lib/agents/consolidation";
-import { serverErrorResponse } from "@/lib/api/error-response";
-import { forbidden, requireLearnerId } from "@/lib/api/guards";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireLearnerContext, requireSessionOwner } from "@/lib/api/guards";
 
 export async function POST(
   _req: Request,
@@ -10,22 +8,12 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const sessionLearnerId = await requireLearnerId();
-  if (sessionLearnerId instanceof NextResponse) return sessionLearnerId;
+  const auth = await requireLearnerContext();
+  if (auth instanceof NextResponse) return auth;
+  const { learnerId, supabase } = auth;
 
-  const supabase = createServiceRoleClient();
-
-  const { data: session, error: sessionError } = await supabase
-    .from("sessions")
-    .select("learner_id")
-    .eq("id", id)
-    .maybeSingle();
-  if (sessionError) {
-    return serverErrorResponse(sessionError);
-  }
-  if (!session || session.learner_id !== sessionLearnerId) {
-    return forbidden();
-  }
+  const ownershipError = await requireSessionOwner(supabase, id, learnerId);
+  if (ownershipError) return ownershipError;
 
   const result = await consolidateSession(supabase, id);
 

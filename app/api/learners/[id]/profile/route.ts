@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireLearnerOwns } from "@/lib/api/guards";
-import { getLearner } from "@/lib/learners/learner";
+import { requireLearnerOwnsContext } from "@/lib/api/guards";
 import { buildLearnerProfile } from "@/lib/profile/read";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(
   _req: Request,
@@ -10,12 +8,10 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
 
-  const auth = await requireLearnerOwns(id);
+  const auth = await requireLearnerOwnsContext(id);
   if (auth instanceof NextResponse) return auth;
+  const { learner, supabase } = auth;
 
-  const supabase = createServiceRoleClient();
-
-  const learner = await getLearner(supabase, id);
   const profile = await buildLearnerProfile(supabase, {
     tenantId: learner.tenantId,
     learnerId: learner.id,

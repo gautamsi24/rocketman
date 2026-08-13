@@ -377,6 +377,74 @@ export interface Database {
         >;
         Relationships: [];
       };
+      frq_questions: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          learner_id: string;
+          concept_id: string;
+          set_id: string;
+          position: number;
+          kind: "long" | "short";
+          requires_diagram: boolean;
+          task_word: string;
+          stimulus: string | null;
+          prompt: string;
+          prompt_hash: string;
+          rubric: { code: string; text: string; points: number }[];
+          max_points: number;
+          answered_at: Timestamp | null;
+          answer_text: string | null;
+          image_path: string | null;
+          awarded_points: number | null;
+          correct: boolean | null;
+          points_detail:
+            | {
+                code: string;
+                text: string;
+                points: number;
+                awarded: boolean;
+                note: string;
+              }[]
+            | null;
+          created_at: Timestamp;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          learner_id: string;
+          concept_id: string;
+          set_id: string;
+          position: number;
+          kind: "long" | "short";
+          requires_diagram?: boolean;
+          task_word: string;
+          stimulus?: string | null;
+          prompt: string;
+          prompt_hash: string;
+          rubric: { code: string; text: string; points: number }[];
+          max_points: number;
+          answered_at?: Timestamp | null;
+          answer_text?: string | null;
+          image_path?: string | null;
+          awarded_points?: number | null;
+          correct?: boolean | null;
+          points_detail?:
+            | {
+                code: string;
+                text: string;
+                points: number;
+                awarded: boolean;
+                note: string;
+              }[]
+            | null;
+          created_at?: Timestamp;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["frq_questions"]["Insert"]
+        >;
+        Relationships: [];
+      };
       curriculum_items: {
         Row: {
           id: string;

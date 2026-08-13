@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
 import { requireLearnerContext } from "@/lib/api/guards";
-import { buildJourney } from "@/lib/journey/read";
+import { getCurrentFrqSet } from "@/lib/curriculum/frq";
 
 export const maxDuration = 30;
 
-// Same journey the page server-renders, exposed for the client to refetch after
-// a graded check answer moves mastery -- so the map/completion update live
-// instead of only on a full refresh.
+// The learner's current practice set (most recent), joined with their answers.
+// Returns null when they have none yet -- generation is an explicit POST so a
+// read never triggers a slow, billable LLM run.
 export async function GET() {
   const auth = await requireLearnerContext();
   if (auth instanceof NextResponse) return auth;
   const { learnerId, learner, supabase } = auth;
 
-  const journey = await buildJourney(supabase, {
+  const set = await getCurrentFrqSet(supabase, {
     tenantId: learner.tenantId,
     learnerId,
   });
 
-  return NextResponse.json(journey);
+  return NextResponse.json({ set });
 }

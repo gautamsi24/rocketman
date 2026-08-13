@@ -13,8 +13,6 @@ import type {
 
 type Client = SupabaseClient<Database>;
 
-const PRACTICE_UNIT_LABEL = "Practice skills";
-
 export async function buildJourney(
   supabase: Client,
   params: { tenantId: string; learnerId: string }
@@ -51,14 +49,16 @@ export async function buildJourney(
   };
 
   const unitByKey = new Map<string, JourneyUnit>();
-  // Content topics and cross-cutting practice skills are separate axes -- track
-  // them apart so unit completion isn't diluted by (or waiting on) practice.
   let contentMastered = 0;
   let contentTotal = 0;
-  let practiceMastered = 0;
-  let practiceTotal = 0;
 
+  // Cross-cutting science practices (scope: practice) are excluded from the
+  // mission map entirely -- they read as confusing pseudo-topics next to real
+  // AP Bio units, and students actually exercise them under Practice FRQs,
+  // not by "completing" a map node.
   for (const concept of concepts) {
+    if (!concept.contentLoCode) continue;
+
     const mastery = masteryByConceptId.get(concept.id);
     const masteryProb = mastery?.masteryProb ?? 0;
     const attempts = mastery?.attempts ?? 0;
@@ -74,31 +74,23 @@ export async function buildJourney(
     else if (attempts > 0) status = "in_progress";
     else status = "available";
 
-    const scope: JourneyNode["scope"] = concept.contentLoCode
-      ? "content"
-      : "practice";
-    if (scope === "content") {
-      contentTotal++;
-      if (done) contentMastered++;
-    } else {
-      practiceTotal++;
-      if (done) practiceMastered++;
-    }
+    contentTotal++;
+    if (done) contentMastered++;
 
     const node: JourneyNode = {
       conceptId: concept.id,
       label: labelByConceptId.get(concept.id) ?? "Untitled concept",
-      scope,
+      scope: "content",
       masteryProb,
       attempts,
       status,
       blockedBy,
     };
 
-    const unitKey = concept.unitCode ?? PRACTICE_UNIT_LABEL;
+    const unitKey = concept.unitCode!;
     const unit = unitByKey.get(unitKey) ?? {
       unitCode: concept.unitCode,
-      unitLabel: concept.unitLabel ?? PRACTICE_UNIT_LABEL,
+      unitLabel: concept.unitLabel ?? unitKey,
       nodes: [],
       masteredCount: 0,
       totalCount: 0,
@@ -110,18 +102,11 @@ export async function buildJourney(
   }
 
   // listConcepts already orders by unit_code, so insertion order is unit order.
-  // Cross-cutting practice skills (no unit) read best as the final leg.
   const units = Array.from(unitByKey.values());
-  const ordered = [
-    ...units.filter((u) => u.unitCode !== null),
-    ...units.filter((u) => u.unitCode === null),
-  ];
 
   return {
-    units: ordered,
+    units,
     contentMastered,
     contentTotal,
-    practiceMastered,
-    practiceTotal,
   };
 }

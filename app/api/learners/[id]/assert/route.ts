@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireLearnerOwns } from "@/lib/api/guards";
-import { getLearner } from "@/lib/learners/learner";
+import { requireLearnerOwnsContext } from "@/lib/api/guards";
 import { applyLearnerAssertion } from "@/lib/memory/profile-write";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function POST(
   req: Request,
@@ -10,8 +8,9 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const auth = await requireLearnerOwns(id);
+  const auth = await requireLearnerOwnsContext(id);
   if (auth instanceof NextResponse) return auth;
+  const { learner, supabase } = auth;
 
   const {
     conceptId,
@@ -22,9 +21,6 @@ export async function POST(
     assertionType: "knows_now" | "misconception_resolved";
     note?: string;
   } = await req.json();
-
-  const supabase = createServiceRoleClient();
-  const learner = await getLearner(supabase, id);
 
   const state = await applyLearnerAssertion(supabase, {
     tenantId: learner.tenantId,

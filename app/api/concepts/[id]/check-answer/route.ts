@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { gradeCheckAnswer } from "@/lib/agents/qna/grade";
 import { serverErrorResponse } from "@/lib/api/error-response";
-import { forbidden, requireLearnerId } from "@/lib/api/guards";
+import { forbidden, requireLearnerContext } from "@/lib/api/guards";
 import { getGroundingContent } from "@/lib/curriculum/content";
-import { getLearner } from "@/lib/learners/learner";
 import { applyGradedUpdate } from "@/lib/memory/profile-write";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
 
@@ -13,8 +11,9 @@ export async function POST(
   req: Request,
   ctx: RouteContext<"/api/concepts/[id]/check-answer">
 ) {
-  const learnerId = await requireLearnerId();
-  if (learnerId instanceof NextResponse) return learnerId;
+  const auth = await requireLearnerContext();
+  if (auth instanceof NextResponse) return auth;
+  const { learnerId, learner, supabase } = auth;
 
   const { id: conceptId } = await ctx.params;
   const { questionId, answer }: { questionId?: string; answer?: string } =
@@ -28,9 +27,6 @@ export async function POST(
   if (!answer?.trim()) {
     return NextResponse.json({ error: "Answer is required" }, { status: 400 });
   }
-
-  const supabase = createServiceRoleClient();
-  const learner = await getLearner(supabase, learnerId);
 
   // A learner may only answer a question the server actually issued to them.
   // We grade the *stored* question text, never anything the client sends, so
