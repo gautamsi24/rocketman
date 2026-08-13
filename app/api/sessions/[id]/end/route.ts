@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { consolidateSession } from "@/lib/agents/consolidation";
 import { serverErrorResponse } from "@/lib/api/error-response";
-import { getSessionLearnerId } from "@/lib/auth/dal";
+import { forbidden, requireLearnerId } from "@/lib/api/guards";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function POST(
@@ -10,10 +10,8 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const sessionLearnerId = await getSessionLearnerId();
-  if (!sessionLearnerId) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  const sessionLearnerId = await requireLearnerId();
+  if (sessionLearnerId instanceof NextResponse) return sessionLearnerId;
 
   const supabase = createServiceRoleClient();
 
@@ -26,7 +24,7 @@ export async function POST(
     return serverErrorResponse(sessionError);
   }
   if (!session || session.learner_id !== sessionLearnerId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return forbidden();
   }
 
   const result = await consolidateSession(supabase, id);

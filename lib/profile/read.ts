@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listConcepts } from "@/lib/curriculum/concepts";
+import { conceptLabel } from "@/lib/curriculum/labels";
 import type { ConceptSummary } from "@/lib/curriculum/types";
 import {
   getAllActiveMisconceptions,
@@ -10,7 +11,7 @@ import {
 import type { MasteryEntry } from "@/lib/memory/types";
 import type { Database } from "@/lib/supabase/types";
 import {
-  MASTERY_COMPLETE_THRESHOLD,
+  isConceptComplete,
   type ProfileMasteryEntry,
   type ProfileResponse,
 } from "./types";
@@ -25,16 +26,13 @@ function toProfileMasteryEntry(
     conceptId: concept.id,
     unitLabel: concept.unitLabel,
     bigIdeaLabel: concept.bigIdeaLabel,
-    label: concept.contentLoLabel ?? concept.practiceLabel ?? "Untitled concept",
+    label: conceptLabel(concept, "Untitled concept"),
     scope: concept.contentLoCode ? "content" : "practice",
     masteryProb: mastery.masteryProb,
     confidence: mastery.confidence,
     attempts: mastery.attempts,
     lastPracticedAt: mastery.lastPracticedAt,
-    // Compare on the rounded percentage the UI displays, not the raw float --
-    // read-time decay can shave a negligible sliver off an exact 0.85 floor
-    // bump (e.g. 0.8499998), which would otherwise fail a strict >= 0.85 check.
-    isComplete: Math.round(mastery.masteryProb * 100) >= MASTERY_COMPLETE_THRESHOLD * 100,
+    isComplete: isConceptComplete(mastery.masteryProb, mastery.attempts),
   };
 }
 

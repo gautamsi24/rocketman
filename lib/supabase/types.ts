@@ -349,6 +349,34 @@ export interface Database {
         >;
         Relationships: [];
       };
+      qna_attempts: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          learner_id: string;
+          concept_id: string;
+          question_text: string;
+          question_hash: string;
+          answered_at: Timestamp | null;
+          correct: boolean | null;
+          created_at: Timestamp;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          learner_id: string;
+          concept_id: string;
+          question_text: string;
+          question_hash: string;
+          answered_at?: Timestamp | null;
+          correct?: boolean | null;
+          created_at?: Timestamp;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["qna_attempts"]["Insert"]
+        >;
+        Relationships: [];
+      };
       curriculum_items: {
         Row: {
           id: string;

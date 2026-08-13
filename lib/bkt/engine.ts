@@ -1,5 +1,11 @@
 import type { BktParams, Evidence, MasteryState } from "./types";
 
+// A learner saying "I know this" is a strong prior boost but must NOT be enough
+// to auto-complete a concept on its own. Kept deliberately below the completion
+// threshold (0.85 in lib/profile) so a self-assertion helps but still requires
+// graded correct answers to cross into "complete".
+const LEARNER_ASSERTION_MASTERY = 0.7;
+
 export function bktUpdate(
   prior: MasteryState,
   params: BktParams,
@@ -7,7 +13,7 @@ export function bktUpdate(
 ): MasteryState {
   if (evidence.kind === "learner_assertion") {
     return {
-      masteryProb: Math.max(prior.masteryProb, 0.85),
+      masteryProb: Math.max(prior.masteryProb, LEARNER_ASSERTION_MASTERY),
       confidence: Math.max(prior.confidence, 0.6),
       attempts: prior.attempts + 1,
     };

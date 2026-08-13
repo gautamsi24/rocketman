@@ -1,7 +1,7 @@
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { transcriptionModel } from "@/lib/agents/shared/model";
-import { getSessionLearnerId } from "@/lib/auth/dal";
+import { requireLearnerId } from "@/lib/api/guards";
 
 export const maxDuration = 30;
 
@@ -13,10 +13,8 @@ const TRANSCRIBE_INSTRUCTION =
   "If there is no discernible speech, output nothing.";
 
 export async function POST(req: Request) {
-  const learnerId = await getSessionLearnerId();
-  if (!learnerId) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  const learnerId = await requireLearnerId();
+  if (learnerId instanceof NextResponse) return learnerId;
 
   const formData = await req.formData();
   const audio = formData.get("audio");

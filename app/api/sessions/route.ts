@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { serverErrorResponse } from "@/lib/api/error-response";
-import { getSessionLearnerId } from "@/lib/auth/dal";
+import { requireLearnerId } from "@/lib/api/guards";
 import { getLearner } from "@/lib/learners/learner";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function POST() {
-  const learnerId = await getSessionLearnerId();
-  if (!learnerId) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  const learnerId = await requireLearnerId();
+  if (learnerId instanceof NextResponse) return learnerId;
 
   const supabase = createServiceRoleClient();
   const learner = await getLearner(supabase, learnerId);

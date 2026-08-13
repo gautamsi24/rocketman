@@ -2,19 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateSpeech, generateText } from "ai";
 import { ttsModel, tutorModel } from "@/lib/agents/shared/model";
 import { getConceptSummary } from "@/lib/curriculum/concepts";
+import { conceptLabel } from "@/lib/curriculum/labels";
 import { getGroundingContent } from "@/lib/curriculum/content";
 import type { Database } from "@/lib/supabase/types";
 
 type Client = SupabaseClient<Database>;
 
 const BUCKET = "podcasts";
-
-function conceptLabel(concept: {
-  contentLoLabel: string | null;
-  practiceLabel: string | null;
-}): string {
-  return concept.contentLoLabel ?? concept.practiceLabel ?? "this topic";
-}
 
 function buildScriptPrompt(label: string, groundingText: string): string {
   return [
@@ -70,7 +64,7 @@ export async function getOrCreatePodcast(
 
   const { text: script } = await generateText({
     model: tutorModel,
-    prompt: buildScriptPrompt(conceptLabel(conceptSummary), groundingText),
+    prompt: buildScriptPrompt(conceptLabel(conceptSummary, "this topic"), groundingText),
   });
 
   const { audio } = await generateSpeech({

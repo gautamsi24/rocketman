@@ -9,19 +9,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { masteryToSequentialColor } from "@/lib/client/palette";
+import type { ProfileMasteryEntry } from "@/lib/profile/types";
 
-interface MasteryHeatmapEntry {
-  conceptId: string;
-  label: string;
-  unitLabel: string | null;
-  bigIdeaLabel: string | null;
-  scope: "content" | "practice";
-  masteryProb: number;
-  confidence: number;
-  attempts: number;
-  lastPracticedAt: string | null;
-  isComplete: boolean;
-}
+type MasteryHeatmapEntry = ProfileMasteryEntry;
 
 type GroupBy = "unit" | "bigIdea";
 

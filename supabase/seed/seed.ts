@@ -1,9 +1,62 @@
 import { createServiceRoleClient } from "../../lib/supabase/server";
+import { hashPassword } from "../../lib/auth/password";
 
 const TENANT_NAME = "AP Biology Demo";
-const DEMO_LEARNER_NAME = "Demo Learner";
 
 type ConceptScope = "content" | "practice";
+
+type DemoProfile = "strong" | "weak" | "clean";
+
+interface DemoAccountSeed {
+  username: string;
+  password: string;
+  displayName: string;
+  profile: DemoProfile;
+}
+
+// All demo logins share one password for convenience.
+const DEMO_PASSWORD = "Demo1234!";
+
+const DEMO_ACCOUNTS: DemoAccountSeed[] = [
+  {
+    username: "ava_strong",
+    password: DEMO_PASSWORD,
+    displayName: "Ava -- strong history",
+    profile: "strong",
+  },
+  {
+    username: "ben_weak",
+    password: DEMO_PASSWORD,
+    displayName: "Ben -- weak history",
+    profile: "weak",
+  },
+  {
+    username: "cleo_new",
+    password: DEMO_PASSWORD,
+    displayName: "Cleo -- new",
+    profile: "clean",
+  },
+  {
+    username: "dev_new",
+    password: DEMO_PASSWORD,
+    displayName: "Dev -- new",
+    profile: "clean",
+  },
+];
+
+// A tutor account (role: tutor, no learner profile) for the tutor console.
+const DEMO_TUTOR_USERNAME = "tutor_demo";
+
+// Misconceptions the weak profile has demonstrated (early-unit struggles).
+const WEAK_MISCONCEPTION_CODES = [
+  "water-polarity-means-charged",
+  "monomer-polymer-direction-confusion",
+  "competitive-vs-noncompetitive-inhibition-confusion",
+];
+
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 interface ConceptSeed {
   key: string;
@@ -18,14 +71,26 @@ interface ConceptSeed {
 }
 
 const CONCEPTS: ConceptSeed[] = [
+  // ---- Unit 1: Chemistry of Life ----
   {
     key: "water-properties",
     unitCode: "Unit 1",
     unitLabel: "Chemistry of Life",
     contentLoCode: "SYI-1.A",
-    contentLoLabel: "Describe the properties of water (polarity, hydrogen bonding, cohesion, adhesion, high specific heat) and their significance for living systems",
+    contentLoLabel: "Water: properties and hydrogen bonding",
     practiceCode: "Skill 6.B",
     practiceLabel: "Argumentation",
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  {
+    key: "ph-buffers",
+    unitCode: "Unit 1",
+    unitLabel: "Chemistry of Life",
+    contentLoCode: "SYI-1.B",
+    contentLoLabel: "pH and buffers",
+    practiceCode: null,
+    practiceLabel: null,
     bigIdeaCode: "SYI",
     bigIdeaLabel: "Systems Interactions",
   },
@@ -34,42 +99,111 @@ const CONCEPTS: ConceptSeed[] = [
     unitCode: "Unit 1",
     unitLabel: "Chemistry of Life",
     contentLoCode: "SYI-1.C",
-    contentLoLabel: "Explain how the structure of macromolecules (proteins, nucleic acids, carbohydrates, lipids) relates to their function",
+    contentLoLabel: "Biological macromolecules",
     practiceCode: "Skill 6.D",
     practiceLabel: "Concept Explanation",
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  // ---- Unit 2: Cell Structure and Function ----
+  {
+    key: "cell-types",
+    unitCode: "Unit 2",
+    unitLabel: "Cell Structure and Function",
+    contentLoCode: "SYI-2.A",
+    contentLoLabel: "Cell types: prokaryotic vs eukaryotic",
+    practiceCode: null,
+    practiceLabel: null,
     bigIdeaCode: "SYI",
     bigIdeaLabel: "Systems Interactions",
   },
   {
     key: "cell-structure",
     unitCode: "Unit 2",
-    unitLabel: "Cells",
-    contentLoCode: "SYI-1.D",
-    contentLoLabel: "Explain how the structure of an organelle relates to its function",
+    unitLabel: "Cell Structure and Function",
+    contentLoCode: "SYI-2.B",
+    contentLoLabel: "Organelle structure and function",
     practiceCode: "Skill 6.D",
     practiceLabel: "Concept Explanation",
     bigIdeaCode: "SYI",
     bigIdeaLabel: "Systems Interactions",
   },
   {
+    key: "cell-membrane",
+    unitCode: "Unit 2",
+    unitLabel: "Cell Structure and Function",
+    contentLoCode: "SYI-2.C",
+    contentLoLabel: "Cell membrane structure",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  {
+    key: "membrane-transport",
+    unitCode: "Unit 2",
+    unitLabel: "Cell Structure and Function",
+    contentLoCode: "SYI-2.D",
+    contentLoLabel: "Membrane transport",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  // ---- Unit 3: Cellular Energetics ----
+  {
     key: "cellular-energetics",
     unitCode: "Unit 3",
     unitLabel: "Cellular Energetics",
-    contentLoCode: "ENE-2.G",
-    contentLoLabel: "Describe how enzyme structure affects catalysis, including feedback inhibition",
+    contentLoCode: "ENE-3.A",
+    contentLoLabel: "Enzymes and catalysis",
     practiceCode: "Skill 6.C",
     practiceLabel: "Argumentation",
     bigIdeaCode: "ENE",
     bigIdeaLabel: "Energetics",
   },
   {
+    key: "cellular-respiration",
+    unitCode: "Unit 3",
+    unitLabel: "Cellular Energetics",
+    contentLoCode: "ENE-3.B",
+    contentLoLabel: "Cellular respiration",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "ENE",
+    bigIdeaLabel: "Energetics",
+  },
+  {
+    key: "photosynthesis",
+    unitCode: "Unit 3",
+    unitLabel: "Cellular Energetics",
+    contentLoCode: "ENE-3.C",
+    contentLoLabel: "Photosynthesis",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "ENE",
+    bigIdeaLabel: "Energetics",
+  },
+  // ---- Unit 4: Cell Communication and Cell Cycle ----
+  {
     key: "signal-transduction",
     unitCode: "Unit 4",
     unitLabel: "Cell Communication and Cell Cycle",
-    contentLoCode: "IST-2.B",
-    contentLoLabel: "Describe the events of a signal transduction pathway from ligand binding to cellular response",
+    contentLoCode: "IST-4.A",
+    contentLoLabel: "Signal transduction pathways",
     practiceCode: "Skill 6.C",
     practiceLabel: "Argumentation",
+    bigIdeaCode: "IST",
+    bigIdeaLabel: "Information Storage and Transmission",
+  },
+  {
+    key: "feedback-mechanisms",
+    unitCode: "Unit 4",
+    unitLabel: "Cell Communication and Cell Cycle",
+    contentLoCode: "IST-4.B",
+    contentLoLabel: "Feedback mechanisms",
+    practiceCode: null,
+    practiceLabel: null,
     bigIdeaCode: "IST",
     bigIdeaLabel: "Information Storage and Transmission",
   },
@@ -77,19 +211,31 @@ const CONCEPTS: ConceptSeed[] = [
     key: "cell-cycle-regulation",
     unitCode: "Unit 4",
     unitLabel: "Cell Communication and Cell Cycle",
-    contentLoCode: "IST-3.A",
-    contentLoLabel: "Explain how the cell cycle is regulated at checkpoints, and how loss of regulation relates to cancer",
+    contentLoCode: "IST-4.C",
+    contentLoLabel: "Cell cycle and mitosis",
     practiceCode: "Skill 6.C",
     practiceLabel: "Argumentation",
     bigIdeaCode: "IST",
     bigIdeaLabel: "Information Storage and Transmission",
   },
+  // ---- Unit 5: Heredity ----
   {
     key: "meiosis-variation",
     unitCode: "Unit 5",
     unitLabel: "Heredity",
-    contentLoCode: "HER-1.D",
-    contentLoLabel: "Explain how meiosis (crossing over and independent assortment) produces genetic variation",
+    contentLoCode: "IST-5.A",
+    contentLoLabel: "Meiosis and genetic variation",
+    practiceCode: "Skill 5.A",
+    practiceLabel: "Statistical Tests and Data Analysis",
+    bigIdeaCode: "IST",
+    bigIdeaLabel: "Information Storage and Transmission",
+  },
+  {
+    key: "mendelian-genetics",
+    unitCode: "Unit 5",
+    unitLabel: "Heredity",
+    contentLoCode: "IST-5.B",
+    contentLoLabel: "Mendelian genetics",
     practiceCode: "Skill 5.A",
     practiceLabel: "Statistical Tests and Data Analysis",
     bigIdeaCode: "IST",
@@ -99,10 +245,33 @@ const CONCEPTS: ConceptSeed[] = [
     key: "inheritance-patterns",
     unitCode: "Unit 5",
     unitLabel: "Heredity",
-    contentLoCode: "HER-2.B",
-    contentLoLabel: "Predict patterns of inheritance in non-Mendelian scenarios (incomplete dominance, codominance, linked genes)",
+    contentLoCode: "IST-5.C",
+    contentLoLabel: "Non-Mendelian inheritance patterns",
     practiceCode: "Skill 5.A",
     practiceLabel: "Statistical Tests and Data Analysis",
+    bigIdeaCode: "IST",
+    bigIdeaLabel: "Information Storage and Transmission",
+  },
+  // ---- Unit 6: Gene Expression and Regulation ----
+  {
+    key: "dna-rna-structure",
+    unitCode: "Unit 6",
+    unitLabel: "Gene Expression and Regulation",
+    contentLoCode: "IST-6.A",
+    contentLoLabel: "DNA and RNA structure",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "IST",
+    bigIdeaLabel: "Information Storage and Transmission",
+  },
+  {
+    key: "dna-replication",
+    unitCode: "Unit 6",
+    unitLabel: "Gene Expression and Regulation",
+    contentLoCode: "IST-6.B",
+    contentLoLabel: "DNA replication",
+    practiceCode: null,
+    practiceLabel: null,
     bigIdeaCode: "IST",
     bigIdeaLabel: "Information Storage and Transmission",
   },
@@ -110,35 +279,115 @@ const CONCEPTS: ConceptSeed[] = [
     key: "genetics-gene-expression",
     unitCode: "Unit 6",
     unitLabel: "Gene Expression and Regulation",
-    contentLoCode: "IST-1.K",
-    contentLoLabel: "Explain the connection between gene expression and protein synthesis (central dogma)",
+    contentLoCode: "IST-6.C",
+    contentLoLabel: "Transcription and translation",
     practiceCode: "Skill 5.A",
     practiceLabel: "Statistical Tests and Data Analysis",
     bigIdeaCode: "IST",
     bigIdeaLabel: "Information Storage and Transmission",
   },
   {
-    key: "evolution",
+    key: "gene-regulation",
+    unitCode: "Unit 6",
+    unitLabel: "Gene Expression and Regulation",
+    contentLoCode: "IST-6.D",
+    contentLoLabel: "Gene regulation",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "IST",
+    bigIdeaLabel: "Information Storage and Transmission",
+  },
+  // ---- Unit 7: Natural Selection ----
+  {
+    key: "natural-selection",
     unitCode: "Unit 7",
     unitLabel: "Natural Selection",
-    contentLoCode: "EVO-3.E",
-    contentLoLabel: "Explain how reproductive isolation (e.g. allopatric divergence) leads to speciation",
+    contentLoCode: "EVO-7.A",
+    contentLoLabel: "Natural selection",
     practiceCode: null,
     practiceLabel: null,
     bigIdeaCode: "EVO",
     bigIdeaLabel: "Evolution",
   },
   {
+    key: "evidence-for-evolution",
+    unitCode: "Unit 7",
+    unitLabel: "Natural Selection",
+    contentLoCode: "EVO-7.B",
+    contentLoLabel: "Evidence for evolution",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "EVO",
+    bigIdeaLabel: "Evolution",
+  },
+  {
+    key: "phylogeny",
+    unitCode: "Unit 7",
+    unitLabel: "Natural Selection",
+    contentLoCode: "EVO-7.C",
+    contentLoLabel: "Phylogeny and common ancestry",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "EVO",
+    bigIdeaLabel: "Evolution",
+  },
+  {
+    key: "evolution",
+    unitCode: "Unit 7",
+    unitLabel: "Natural Selection",
+    contentLoCode: "EVO-7.D",
+    contentLoLabel: "Speciation",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "EVO",
+    bigIdeaLabel: "Evolution",
+  },
+  // ---- Unit 8: Ecology ----
+  {
+    key: "environmental-responses",
+    unitCode: "Unit 8",
+    unitLabel: "Ecology",
+    contentLoCode: "SYI-8.A",
+    contentLoLabel: "Responses to the environment",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  {
     key: "ecology",
     unitCode: "Unit 8",
     unitLabel: "Ecology",
-    contentLoCode: "ENG-2.E",
-    contentLoLabel: "Explain how the growth of a keystone species affects an ecosystem",
+    contentLoCode: "SYI-8.B",
+    contentLoLabel: "Energy flow in ecosystems",
     practiceCode: "Skill 3.C",
     practiceLabel: "Questions and Methods",
     bigIdeaCode: "SYI",
     bigIdeaLabel: "Systems Interactions",
   },
+  {
+    key: "community-ecology",
+    unitCode: "Unit 8",
+    unitLabel: "Ecology",
+    contentLoCode: "SYI-8.C",
+    contentLoLabel: "Community ecology",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  {
+    key: "biodiversity",
+    unitCode: "Unit 8",
+    unitLabel: "Ecology",
+    contentLoCode: "SYI-8.D",
+    contentLoLabel: "Biodiversity",
+    practiceCode: null,
+    practiceLabel: null,
+    bigIdeaCode: "SYI",
+    bigIdeaLabel: "Systems Interactions",
+  },
+  // ---- Cross-cutting science-practice skills (no unit) ----
   {
     key: "practice-justify-mechanism",
     unitCode: null,
@@ -554,6 +803,109 @@ const CURRICULUM_ITEMS: CurriculumItemSeed[] = [
     teachingContent: "A well-designed experiment isolates the effect of one independent variable on a dependent variable while holding other factors constant. That requires a control group -- a comparison condition that is treated identically except for the variable being tested -- so that any difference between groups can be attributed to that variable rather than to some other uncontrolled factor. A null hypothesis states the default assumption that the independent variable has no effect on the dependent variable; the experiment's job is to gather evidence for or against that assumption, not to assume the desired outcome from the start.\n\nBecause any single measurement varies somewhat by chance, good experimental design also requires adequate replication (multiple independent trials or subjects per group) and statistical analysis to determine whether an observed difference is likely real or could plausibly be due to random variation alone. A visual shortcut for this: if error bars or confidence intervals for two groups overlap substantially, the difference between them is usually not statistically significant, and a formal statistical test (not just eyeballing the averages) is needed before concluding the independent variable actually had an effect.",
     frqArchetype: null,
   },
+  // -- Full CED topic coverage: grounding + check question for each new topic --
+  {
+    conceptKey: "ph-buffers",
+    promptText: "A solution's pH drops from 7 to 4. Has the hydrogen ion concentration increased or decreased, and by roughly how much?",
+    teachingContent: "pH measures hydrogen ion concentration on a logarithmic scale: pH = -log[H+]. A lower pH means MORE H+ (more acidic); a higher pH means fewer H+ (more basic). Because the scale is logarithmic, each whole-number change is a tenfold change in [H+] -- so a drop from pH 7 to pH 4 is three steps, or about 1000x more H+. Living systems hold pH within narrow ranges because a protein's shape (and therefore an enzyme's function) depends on it. Buffers resist pH change by absorbing or releasing H+ as conditions shift -- for example, the bicarbonate buffer system that stabilizes blood pH.",
+    frqArchetype: "analyze_data",
+  },
+  {
+    conceptKey: "cell-types",
+    promptText: "Name two structural features that distinguish a eukaryotic cell from a prokaryotic cell, and one feature they share.",
+    teachingContent: "Prokaryotic cells (bacteria and archaea) have no membrane-bound nucleus and no membrane-bound organelles; their DNA sits in the cytoplasm in a region called the nucleoid, and they are generally small. Eukaryotic cells (plants, animals, fungi, protists) enclose their DNA in a membrane-bound nucleus and contain membrane-bound organelles such as mitochondria, endoplasmic reticulum, and Golgi. Both cell types share a plasma membrane, cytoplasm, ribosomes, and DNA as their genetic material. The compartmentalization in eukaryotes is significant because it lets chemically incompatible processes run at the same time in separate organelles.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "cell-membrane",
+    promptText: "Why is the cell membrane described as a 'fluid mosaic,' and why do its phospholipids form a bilayer in water?",
+    teachingContent: "The cell membrane is a phospholipid bilayer. Each phospholipid has a hydrophilic (water-attracting) phosphate head and two hydrophobic (water-repelling) fatty-acid tails. In a watery environment the tails tuck inward, away from water, while the heads face the watery interior and exterior -- so a bilayer forms spontaneously. It is called a 'fluid mosaic' because the phospholipids drift laterally within each layer (fluid) and a mosaic of embedded proteins, cholesterol, and surface carbohydrates is scattered throughout. This structure makes the membrane selectively permeable: small nonpolar molecules slip across easily, while ions and large polar molecules require transport proteins.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "membrane-transport",
+    promptText: "A cell moves ions from a region of low concentration to high concentration. Is this passive or active transport, and what does it require?",
+    teachingContent: "Passive transport moves substances DOWN their concentration gradient (high to low) with no energy input -- this includes simple diffusion, facilitated diffusion through proteins, and osmosis (the diffusion of water across a selectively permeable membrane toward the higher solute concentration). Active transport moves substances AGAINST their gradient (low to high) and therefore requires energy, usually ATP, as in the sodium-potassium pump. So moving ions from low to high concentration is active transport, and it requires ATP. A quick check: if a substance moves toward where it is already more concentrated, energy must be spent.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "cellular-respiration",
+    promptText: "In which stage of cellular respiration is the most ATP produced, and what molecule is the final electron acceptor?",
+    teachingContent: "Cellular respiration breaks glucose down to make ATP in three stages. Glycolysis, in the cytoplasm, splits glucose into two pyruvate molecules for a small net ATP yield. The Krebs (citric acid) cycle, in the mitochondrial matrix, releases CO2 and loads the electron carriers NADH and FADH2. Oxidative phosphorylation -- the electron transport chain plus chemiosmosis on the inner mitochondrial membrane -- produces the large majority of the ATP. Oxygen is the final electron acceptor at the end of the electron transport chain, combining with electrons and H+ to form water; without oxygen the chain backs up and cells fall back on fermentation.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "photosynthesis",
+    promptText: "What are the inputs and outputs of the light-dependent reactions versus the Calvin cycle?",
+    teachingContent: "Photosynthesis converts light energy into chemical energy in two linked stages. The light-dependent reactions, in the thylakoid membranes, capture light energy to split water (releasing O2) and produce ATP and NADPH. The Calvin cycle (light-independent reactions), in the stroma, uses that ATP and NADPH to fix CO2 into sugar (building G3P, which forms glucose). So the outputs of the light reactions -- ATP and NADPH -- are the inputs the Calvin cycle needs, and overall CO2, water, and light energy become glucose and oxygen. In energy terms it is essentially the reverse of cellular respiration.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "feedback-mechanisms",
+    promptText: "Rising body temperature triggers sweating, which cools the body back down. Is this positive or negative feedback, and why?",
+    teachingContent: "Feedback loops keep biological systems regulated. Negative feedback counteracts a change to restore a set point -- for example, sweating when body temperature rises, or insulin lowering blood glucose after a meal. Negative feedback is the dominant mode of homeostasis. Positive feedback instead amplifies a change, pushing the system further from where it started until a distinct event completes -- for example, the oxytocin surge that intensifies labor contractions, or the clotting cascade at a wound. Sweating to cool down is negative feedback because the response (cooling) opposes and reduces the original change (the temperature increase).",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "mendelian-genetics",
+    promptText: "Cross two heterozygotes (Aa x Aa) for a completely dominant trait. What genotypic and phenotypic ratios do you predict, and why is that only a prediction?",
+    teachingContent: "Mendel's two laws underlie simple inheritance: the law of segregation (each parent passes just one of its two alleles for a gene to each gamete) and the law of independent assortment (alleles of different genes sort into gametes independently). A cross of two heterozygotes, Aa x Aa, gives a genotypic ratio of 1 AA : 2 Aa : 1 aa. If A is completely dominant, the phenotypic ratio is 3 dominant : 1 recessive. A Punnett square only predicts these as probabilities from random fertilization -- they become reliable across many offspring, not guaranteed in any single small litter.",
+    frqArchetype: "analyze_data",
+  },
+  {
+    conceptKey: "dna-rna-structure",
+    promptText: "Give two structural differences between DNA and RNA, and explain how base pairing lets DNA be copied accurately.",
+    teachingContent: "DNA is a double-stranded, antiparallel double helix. Its nucleotides use the sugar deoxyribose and the bases adenine, thymine, guanine, and cytosine, with A pairing to T and G pairing to C through hydrogen bonds. RNA is usually single-stranded, uses the sugar ribose, and replaces thymine with uracil, so A pairs with U. The strict complementary base pairing in DNA (A-T, G-C) is exactly what allows faithful copying: each strand specifies its partner, so a template strand determines the sequence of the new strand. RNA's single-stranded, uracil-containing form suits carrying and translating messages rather than long-term storage.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "dna-replication",
+    promptText: "Why is DNA replication described as 'semiconservative,' and what does DNA polymerase do?",
+    teachingContent: "DNA replication is semiconservative: the double helix unwinds and each original strand serves as a template for a new complementary strand, so every daughter molecule ends up with one old (conserved) strand and one newly built strand. Helicase unwinds and separates the strands; DNA polymerase reads each template and adds complementary nucleotides in the 5'-to-3' direction; the leading strand is synthesized continuously while the lagging strand is made in short pieces (Okazaki fragments) later joined by ligase. Accuracy comes from complementary base pairing (A-T, G-C) plus polymerase's proofreading.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "gene-regulation",
+    promptText: "A neuron and a muscle cell in the same body contain identical DNA. How can they have such different structures and functions?",
+    teachingContent: "Almost every cell in an organism carries the same DNA; what differs between cell types is which genes are actually expressed. Gene regulation controls this -- especially at transcription, through promoters, enhancers, and transcription factors that determine whether RNA polymerase transcribes a given gene. In prokaryotes, operons such as the lac operon switch groups of related genes on or off together in response to the environment. Because of this differential gene expression, a neuron and a muscle cell with identical genomes end up structurally and functionally distinct: each turns on a different subset of its shared genes.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "natural-selection",
+    promptText: "State the conditions a population must meet for natural selection to occur, and explain why selection is not goal-directed.",
+    teachingContent: "Natural selection requires three things in a population: heritable variation among individuals, differential reproductive success tied to that variation (some variants leave more offspring in a given environment), and time across generations. Crucially, the variation arises first -- from mutation and recombination -- and the environment merely selects among the variants that already exist. Selection is therefore not goal-directed: organisms do not develop traits because they 'need' them. The outcome is a shift in the population's allele frequencies over generations; individuals themselves do not evolve within their own lifetimes.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "evidence-for-evolution",
+    promptText: "Name three independent lines of evidence that support common ancestry, and explain why having several independent lines matters.",
+    teachingContent: "Several independent lines of evidence support evolution and common ancestry: the fossil record (transitional forms and chronological succession of species), homologous structures (the same underlying anatomy adapted to different functions, like the vertebrate forelimb), molecular evidence (shared DNA and protein sequences and the near-universal genetic code), embryological similarities among related groups, and directly observed selection such as antibiotic resistance. What makes the case strong is that these independent data sets -- anatomy, molecules, fossils -- converge on the same branching pattern of relationships, which is far more convincing than any single line alone.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "phylogeny",
+    promptText: "On a phylogenetic tree, what does a node represent, and how do you tell which two groups are most closely related?",
+    teachingContent: "A phylogenetic tree (or cladogram) diagrams evolutionary relationships inferred from shared derived characters and molecular data. Each node (branch point) represents a common ancestor from which the diverging lineages descended. Two groups are most closely related when they share the most recent common ancestor -- that is, their branches meet at the nearest node -- not because they look similar or sit near each other at the tips. Shared derived traits (synapomorphies) define a clade, and the more recently two lineages split, the more features they tend to share. Reading relatedness by node depth, not tip proximity, is the key skill.",
+    frqArchetype: "analyze_model_visual",
+  },
+  {
+    conceptKey: "environmental-responses",
+    promptText: "Give an example of how an organism responds to an environmental cue in a way that improves survival or reproduction.",
+    teachingContent: "Organisms detect and respond to environmental signals in ways that affect survival and reproduction. Responses may be behavioral (migration, hibernation timing, moving toward light), physiological (a plant closing its stomata during drought to conserve water), or tied to timing cues such as photoperiod (day length triggering flowering or breeding seasons). Many of these responses are shaped by natural selection, because well-timed responses to cues like food availability, temperature, and light improve fitness. Communication between organisms -- signaling and cooperative behavior -- is another category of response that can raise survival and reproductive success.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "community-ecology",
+    promptText: "Distinguish competition, predation, and mutualism, and give the effect (+ or -) each has on the species involved.",
+    teachingContent: "A community is all the interacting populations living in an area, and species interactions shape its structure. Competition (-/-) occurs when species vie for the same limited resource, which can drive niche partitioning or competitive exclusion. Predation (+/-) benefits the predator at the prey's expense and drives adaptations such as camouflage and warning coloration. Symbioses include mutualism (+/+, both species benefit, like pollinators and flowering plants), commensalism (+/0, one benefits and the other is unaffected), and parasitism (+/-). A keystone species has effects on community structure far larger than its abundance would suggest.",
+    frqArchetype: "conceptual_analysis",
+  },
+  {
+    conceptKey: "biodiversity",
+    promptText: "Why is a more biodiverse ecosystem generally more resilient to disturbance than a low-diversity one?",
+    teachingContent: "Biodiversity -- the variety of species, plus genetic variety within them and the range of ecosystems present -- tends to increase stability and resilience. When many species fill varied and overlapping roles, the loss or decline of one is more likely to be buffered by others that can perform a similar function, so the ecosystem recovers from disturbance more readily. Genetic diversity within a population similarly buffers against disease and environmental change. Low-diversity systems are more fragile: with little functional redundancy, a single disturbance can cascade through the whole system because no other species can take over the affected role.",
+    frqArchetype: "conceptual_analysis",
+  },
 ];
 
 const CALIBRATED_HARD_CONCEPTS = new Set([
@@ -561,7 +913,189 @@ const CALIBRATED_HARD_CONCEPTS = new Set([
   "practice-experimental-design",
 ]);
 
+// Every tenant-scoped table, ordered children-before-parents so a wipe never
+// violates a foreign key.
+const TENANT_TABLES = [
+  "qna_attempts",
+  "turn_events",
+  "learner_insights",
+  "learner_assertions",
+  "learner_misconceptions",
+  "concept_mastery_history",
+  "concept_mastery",
+  "concept_podcasts",
+  "curriculum_items",
+  "concept_prerequisites",
+  "bkt_concept_params",
+  "misconceptions",
+  "sessions",
+  "concepts",
+  "learners",
+  "tutor_profiles",
+] as const;
+
+async function resetTenant(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  tenantId: string
+): Promise<void> {
+  for (const table of TENANT_TABLES) {
+    // Cast to one concrete table type: every table here has a tenant_id column
+    // and the delete semantics are identical, but the union of builder types
+    // otherwise confuses the typed client.
+    const { error } = await supabase
+      .from(table as "concepts")
+      .delete()
+      .eq("tenant_id", tenantId);
+    if (error) throw error;
+  }
+
+  // Clear the seed's own login accounts (learner + tutor) by username, so a
+  // reseed can recreate them without leaving orphaned users (valid login, no
+  // linked learner -> 403) and without touching any other tenant's users.
+  const seedUsernames = [
+    ...DEMO_ACCOUNTS.map((account) => account.username),
+    DEMO_TUTOR_USERNAME,
+  ];
+  const { error: usersError } = await supabase
+    .from("users")
+    .delete()
+    .in("username", seedUsernames);
+  if (usersError) throw usersError;
+
+  const { error } = await supabase.from("tenants").delete().eq("id", tenantId);
+  if (error) throw error;
+  console.log(`Wiped existing tenant ${tenantId} (including seed accounts)`);
+}
+
+type Supabase = ReturnType<typeof createServiceRoleClient>;
+
+// Seeds one concept's mastery plus a short history trail, tuned to the profile.
+async function seedConceptMastery(
+  supabase: Supabase,
+  params: {
+    tenantId: string;
+    learnerId: string;
+    conceptId: string;
+    strong: boolean;
+    inLastUnit: boolean;
+  }
+): Promise<void> {
+  const { tenantId, learnerId, conceptId, strong, inLastUnit } = params;
+  const masteryProb = strong ? (inLastUnit ? 0.58 : 0.9) : 0.32;
+  const attempts = strong ? (inLastUnit ? 2 : 5) : 2;
+  const confidence = strong ? (inLastUnit ? 0.4 : 0.85) : 0.33;
+
+  const { error: masteryError } = await supabase.from("concept_mastery").insert({
+    tenant_id: tenantId,
+    learner_id: learnerId,
+    concept_id: conceptId,
+    mastery_prob: masteryProb,
+    confidence,
+    attempts,
+    last_practiced_at: daysAgo(strong ? 1 : 4),
+  });
+  if (masteryError) throw masteryError;
+
+  // A little history so the Trend view isn't empty.
+  const historyPoints = strong
+    ? [
+        { days: 21, prob: 0.4 },
+        { days: 10, prob: 0.66 },
+        { days: 1, prob: masteryProb },
+      ]
+    : [
+        { days: 18, prob: 0.28 },
+        { days: 4, prob: masteryProb },
+      ];
+  for (const point of historyPoints) {
+    const { error } = await supabase.from("concept_mastery_history").insert({
+      tenant_id: tenantId,
+      learner_id: learnerId,
+      concept_id: conceptId,
+      mastery_prob: point.prob,
+      recorded_at: daysAgo(point.days),
+    });
+    if (error) throw error;
+  }
+}
+
+// Creates a login-able demo account and back-fills history to match its profile.
+async function seedDemoAccount(
+  supabase: Supabase,
+  params: {
+    tenantId: string;
+    account: DemoAccountSeed;
+    contentConcepts: ConceptSeed[];
+    conceptIdByKey: Map<string, string>;
+    misconceptionIdByCode: Map<string, string>;
+  }
+): Promise<void> {
+  const { tenantId, account, contentConcepts, conceptIdByKey, misconceptionIdByCode } =
+    params;
+
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .insert({
+      username: account.username,
+      password_hash: await hashPassword(account.password),
+      role: "learner",
+    })
+    .select("id")
+    .single();
+  if (userError) throw userError;
+
+  const { data: learner, error: learnerError } = await supabase
+    .from("learners")
+    .insert({
+      tenant_id: tenantId,
+      display_name: account.displayName,
+      market_id: "us-ap-bio",
+      age_band: "14-18",
+      user_id: user.id,
+    })
+    .select("id")
+    .single();
+  if (learnerError) throw learnerError;
+  const learnerId = learner.id;
+
+  if (account.profile !== "clean") {
+    const strong = account.profile === "strong";
+    // Strong learner has worked all the way through; weak learner has only
+    // touched the first few topics and hasn't mastered them.
+    const targets = strong ? contentConcepts : contentConcepts.slice(0, 6);
+    for (const concept of targets) {
+      await seedConceptMastery(supabase, {
+        tenantId,
+        learnerId,
+        conceptId: conceptIdByKey.get(concept.key)!,
+        strong,
+        inLastUnit: concept.unitCode === "Unit 8",
+      });
+    }
+  }
+
+  if (account.profile === "weak") {
+    for (const code of WEAK_MISCONCEPTION_CODES) {
+      const misconceptionId = misconceptionIdByCode.get(code);
+      if (!misconceptionId) continue;
+      const { error } = await supabase.from("learner_misconceptions").insert({
+        tenant_id: tenantId,
+        learner_id: learnerId,
+        misconception_id: misconceptionId,
+        evidence_count: 2,
+        last_observed_at: daysAgo(4),
+        status: "active",
+      });
+      if (error) throw error;
+    }
+  }
+
+  console.log(`Created demo account ${account.username} (${account.profile})`);
+}
+
 async function main() {
+  const reset =
+    process.env.SEED_RESET === "1" || process.argv.includes("--reset");
   const supabase = createServiceRoleClient();
 
   const { data: existingTenant, error: existingTenantError } = await supabase
@@ -572,8 +1106,14 @@ async function main() {
   if (existingTenantError) throw existingTenantError;
 
   if (existingTenant) {
-    console.log(`Tenant "${TENANT_NAME}" already exists (id=${existingTenant.id}); skipping.`);
-    return;
+    if (!reset) {
+      console.log(
+        `Tenant "${TENANT_NAME}" already exists (id=${existingTenant.id}); skipping. ` +
+          "Re-run with --reset (npm run seed -- --reset) to wipe and re-seed."
+      );
+      return;
+    }
+    await resetTenant(supabase, existingTenant.id);
   }
 
   const { data: tenant, error: tenantError } = await supabase
@@ -594,19 +1134,6 @@ async function main() {
   });
   if (tutorProfileError) throw tutorProfileError;
   console.log("Created tutor profile");
-
-  const { data: learner, error: learnerError } = await supabase
-    .from("learners")
-    .insert({
-      tenant_id: tenantId,
-      display_name: DEMO_LEARNER_NAME,
-      market_id: "us-ap-bio",
-      age_band: "14-18",
-    })
-    .select("id")
-    .single();
-  if (learnerError) throw learnerError;
-  console.log(`Created demo learner ${learner.id}`);
 
   const conceptIdByKey = new Map<string, string>();
   for (const concept of CONCEPTS) {
@@ -630,6 +1157,20 @@ async function main() {
   }
   console.log(`Created ${CONCEPTS.length} concepts`);
 
+  // Prerequisite progression: a linear spine through the content topics in unit
+  // order, so each topic unlocks the next (Unit 1 -> ... -> Unit 8). The
+  // cross-cutting practice skills (no unit) stay always-available.
+  const contentConcepts = CONCEPTS.filter((concept) => concept.unitCode !== null);
+  for (let i = 1; i < contentConcepts.length; i++) {
+    const { error } = await supabase.from("concept_prerequisites").insert({
+      tenant_id: tenantId,
+      concept_id: conceptIdByKey.get(contentConcepts[i].key)!,
+      prerequisite_concept_id: conceptIdByKey.get(contentConcepts[i - 1].key)!,
+    });
+    if (error) throw error;
+  }
+  console.log(`Seeded ${contentConcepts.length - 1} prerequisite links`);
+
   for (const concept of CONCEPTS) {
     const conceptId = conceptIdByKey.get(concept.key)!;
     const isHard = CALIBRATED_HARD_CONCEPTS.has(concept.key);
@@ -644,19 +1185,25 @@ async function main() {
   }
   console.log(`Seeded bkt_concept_params for ${CONCEPTS.length} concepts`);
 
+  const misconceptionIdByCode = new Map<string, string>();
   for (const m of MISCONCEPTIONS) {
     const relatedConceptId = m.relatedConceptKey
       ? conceptIdByKey.get(m.relatedConceptKey) ?? null
       : null;
-    const { error } = await supabase.from("misconceptions").insert({
-      tenant_id: tenantId,
-      code: m.code,
-      label: m.label,
-      description: m.description,
-      scope: m.scope,
-      related_concept_id: relatedConceptId,
-    });
+    const { data, error } = await supabase
+      .from("misconceptions")
+      .insert({
+        tenant_id: tenantId,
+        code: m.code,
+        label: m.label,
+        description: m.description,
+        scope: m.scope,
+        related_concept_id: relatedConceptId,
+      })
+      .select("id")
+      .single();
     if (error) throw error;
+    misconceptionIdByCode.set(m.code, data.id);
   }
   console.log(`Created ${MISCONCEPTIONS.length} misconceptions`);
 
@@ -674,6 +1221,24 @@ async function main() {
     if (error) throw error;
   }
   console.log(`Created ${CURRICULUM_ITEMS.length} curriculum items`);
+
+  for (const account of DEMO_ACCOUNTS) {
+    await seedDemoAccount(supabase, {
+      tenantId,
+      account,
+      contentConcepts,
+      conceptIdByKey,
+      misconceptionIdByCode,
+    });
+  }
+
+  const { error: tutorUserError } = await supabase.from("users").insert({
+    username: DEMO_TUTOR_USERNAME,
+    password_hash: await hashPassword(DEMO_PASSWORD),
+    role: "tutor",
+  });
+  if (tutorUserError) throw tutorUserError;
+  console.log(`Created demo tutor ${DEMO_TUTOR_USERNAME}`);
 
   console.log("Seed complete.");
 }

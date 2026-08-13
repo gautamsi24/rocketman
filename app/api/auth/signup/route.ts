@@ -83,7 +83,15 @@ export async function POST(req: Request) {
     return serverErrorResponse(learnerError);
   }
 
-  await createSessionCookie(learner.id);
+  await createSessionCookie({
+    userId: user.id,
+    role: "learner",
+    learnerId: learner.id,
+  });
 
-  return NextResponse.json({ id: learner.id, displayName: learner.display_name });
+  return NextResponse.json({
+    role: "learner",
+    id: learner.id,
+    displayName: learner.display_name,
+  });
 }

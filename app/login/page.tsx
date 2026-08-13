@@ -50,7 +50,7 @@ export default function LoginPage() {
         setError(extractErrorMessage(data.error));
         return;
       }
-      router.push("/chat");
+      router.push(data.role === "tutor" ? "/tutor" : "/journey");
     } finally {
       setSubmitting(false);
     }

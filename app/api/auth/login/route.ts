@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   const { data: user, error: userError } = await supabase
     .from("users")
-    .select("id, password_hash")
+    .select("id, password_hash, role")
     .eq("username", username)
     .maybeSingle();
   if (userError) {
@@ -43,6 +43,20 @@ export async function POST(req: Request) {
     );
   }
 
+  // Tutors have no learner profile; give them a tutor session and let the
+  // client route them to the tutor space.
+  if (user.role === "tutor") {
+    await createSessionCookie({ userId: user.id, role: "tutor", learnerId: null });
+    return NextResponse.json({ role: "tutor" });
+  }
+
+  if (user.role !== "learner") {
+    return NextResponse.json(
+      { error: "This account type can't sign in yet" },
+      { status: 403 }
+    );
+  }
+
   const { data: learner, error: learnerError } = await supabase
     .from("learners")
     .select("id, display_name")
@@ -58,7 +72,15 @@ export async function POST(req: Request) {
     );
   }
 
-  await createSessionCookie(learner.id);
+  await createSessionCookie({
+    userId: user.id,
+    role: "learner",
+    learnerId: learner.id,
+  });
 
-  return NextResponse.json({ id: learner.id, displayName: learner.display_name });
+  return NextResponse.json({
+    role: "learner",
+    id: learner.id,
+    displayName: learner.display_name,
+  });
 }

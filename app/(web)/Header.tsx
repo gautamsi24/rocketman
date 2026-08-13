@@ -2,14 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { usePodcastPlayback } from "./PodcastPlaybackProvider";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const { confirmNavigation } = usePodcastPlayback();
 
   const logout = async () => {
     if (loggingOut) return;
+    if (!confirmNavigation()) return;
     setLoggingOut(true);
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");

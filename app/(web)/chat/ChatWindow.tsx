@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Conversation,
@@ -23,21 +23,13 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input";
+import { conceptLabel } from "@/lib/curriculum/labels";
+import type { ConceptSummary } from "@/lib/curriculum/types";
 import { fetchPodcastAudioUrl } from "@/lib/client/podcast-audio";
+import { useResource } from "@/hooks/use-resource";
 import { MicButton } from "./MicButton";
 
-interface TopicOption {
-  id: string;
-  unitLabel: string | null;
-  contentLoLabel: string | null;
-  practiceLabel: string | null;
-}
-
 type PodcastState = "loading" | "error" | { url: string };
-
-function topicLabel(topic: TopicOption): string {
-  return topic.contentLoLabel ?? topic.practiceLabel ?? "this topic";
-}
 
 export function ChatWindow({
   sessionId,
@@ -48,20 +40,15 @@ export function ChatWindow({
   conceptId: string | null;
   onConceptSwitch: (conceptId: string) => void;
 }) {
-  const [topicById, setTopicById] = useState<Map<string, TopicOption>>(new Map());
   const [podcastState, setPodcastState] = useState<Record<string, PodcastState>>({});
 
-  useEffect(() => {
-    fetch("/api/concepts")
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load topics"))))
-      .then((data: TopicOption[]) => {
-        setTopicById(new Map(data.map((topic) => [topic.id, topic])));
-      })
-      .catch(() => {
-        // Non-fatal: tool-call validation just fails closed (unknown ids are
-        // rejected) until this loads, same as any other transient fetch gap.
-      });
-  }, []);
+  // Non-fatal if this fails: tool-call validation just fails closed (unknown
+  // ids are rejected) until the concept list loads.
+  const { data: concepts } = useResource<ConceptSummary[]>("/api/concepts");
+  const topicById = useMemo(
+    () => new Map((concepts ?? []).map((topic) => [topic.id, topic] as const)),
+    [concepts]
+  );
 
   const { messages, sendMessage, status, addToolOutput } = useChat({
     transport: new DefaultChatTransport({
@@ -139,7 +126,7 @@ export function ChatWindow({
                       const topic = input?.conceptId ? topicById.get(input.conceptId) : undefined;
                       return (
                         <p key={i} className="text-xs italic text-muted-foreground">
-                          Switched to: {topic ? topicLabel(topic) : "new topic"}
+                          Switched to: {topic ? conceptLabel(topic, "this topic") : "new topic"}
                         </p>
                       );
                     }

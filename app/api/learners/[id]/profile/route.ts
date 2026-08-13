@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionLearnerId } from "@/lib/auth/dal";
+import { requireLearnerOwns } from "@/lib/api/guards";
 import { getLearner } from "@/lib/learners/learner";
 import { buildLearnerProfile } from "@/lib/profile/read";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -10,13 +10,8 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
 
-  const sessionLearnerId = await getSessionLearnerId();
-  if (!sessionLearnerId) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-  if (sessionLearnerId !== id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireLearnerOwns(id);
+  if (auth instanceof NextResponse) return auth;
 
   const supabase = createServiceRoleClient();
 

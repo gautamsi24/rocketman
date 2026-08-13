@@ -11,7 +11,7 @@ import { processTurnEvent } from "@/lib/agents/signal-extraction";
 import { buildTutorContext } from "@/lib/agents/tutor/context";
 import { buildTutorInstructions } from "@/lib/agents/tutor/prompt";
 import { sharePodcastTool, switchConceptTool } from "@/lib/agents/tutor/tools";
-import { getSessionLearnerId } from "@/lib/auth/dal";
+import { forbidden, requireLearnerId } from "@/lib/api/guards";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
@@ -26,10 +26,8 @@ function getLatestUserText(messages: UIMessage[]): string {
 }
 
 export async function POST(req: Request) {
-  const learnerId = await getSessionLearnerId();
-  if (!learnerId) {
-    return new Response("Not authenticated", { status: 401 });
-  }
+  const learnerId = await requireLearnerId();
+  if (typeof learnerId !== "string") return learnerId;
 
   const {
     messages,
@@ -49,7 +47,7 @@ export async function POST(req: Request) {
     .eq("id", sessionId)
     .maybeSingle();
   if (sessionError || !session || session.learner_id !== learnerId) {
-    return new Response("Forbidden", { status: 403 });
+    return forbidden();
   }
 
   const learnerMessage = getLatestUserText(messages);
