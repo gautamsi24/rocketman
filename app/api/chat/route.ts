@@ -7,11 +7,11 @@ import {
   type UIMessage,
 } from "ai";
 import { tutorModel } from "@/lib/agents/shared/model";
-import { processTurnEvent } from "@/lib/agents/signal-extraction";
 import { buildTutorContext } from "@/lib/agents/tutor/context";
 import { buildTutorInstructions } from "@/lib/agents/tutor/prompt";
 import { sharePodcastTool, switchConceptTool } from "@/lib/agents/tutor/tools";
 import { requireLearnerId, requireSessionOwner } from "@/lib/api/guards";
+import { inngest } from "@/lib/inngest/client";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
@@ -78,7 +78,10 @@ export async function POST(req: Request) {
           console.error(error);
           return;
         }
-        await processTurnEvent(supabase, turnEvent.id);
+        await inngest.send({
+          name: "turn_event/created",
+          data: { turnEventId: turnEvent.id },
+        });
       });
     },
   });

@@ -37,8 +37,9 @@ skill) and driving the flow, not by looking for a test suite.
 `supabase/migrations/*.sql` (timestamp-prefixed, applied in order). After
 changing migrations or pointing at a fresh database, apply migrations then run
 `npm run seed`. Copy `.env.local.example` → `.env.local` and fill in Supabase
-keys, a Google AI Studio key (`GOOGLE_GENERATIVE_AI_API_KEY`, free-tier Gemini),
-and `CRON_SECRET`.
+keys and a Google AI Studio key (`GOOGLE_GENERATIVE_AI_API_KEY`, free-tier
+Gemini). To exercise the async memory update locally, set `INNGEST_DEV=1` for
+`npm run dev` and also run `npx inngest-cli dev` alongside it (see README).
 
 ## Architecture
 
@@ -80,12 +81,16 @@ The agents split on two axes: **who may write learner memory** and
 ### Fast-loop / slow-loop (the async memory update)
 
 The chat route does **not** write memory inline. On stream end it writes one
-`turn_events` row and fires an unawaited `after()` callback that runs
-Signal-Extraction. `turn_events` is a durable append-only ledger; a
-pending-row **sweep** endpoint (`app/api/turn-events/process/route.ts`,
-authorized by `CRON_SECRET`, meant for Vercel Cron) reprocesses rows whose
-background callback was dropped. This is the demo-scale stand-in for a real
-message broker — keep the separation even though the transport is in-process.
+`turn_events` row and, in an unawaited `after()` callback, enqueues a
+`turn_event/created` Inngest event; an Inngest function (`lib/inngest/functions.ts`)
+picks it up and runs Signal-Extraction with automatic retry/backoff, marking
+the row `status: 'error'` only once retries are exhausted (`onFailure`).
+`turn_events` is a durable append-only ledger. A second, cron-triggered
+Inngest function (`sweepStaleTurnEventsFn`) re-enqueues any row still
+`pending` past a staleness window — the narrow backstop for `inngest.send()`
+itself failing to enqueue, not a general retry mechanism (Inngest already
+owns that). No separate HTTP sweep endpoint or Vercel Cron config exists;
+scheduling lives entirely in Inngest.
 
 ### Auth (this is real, not theater)
 

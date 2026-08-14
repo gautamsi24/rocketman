@@ -877,3 +877,50 @@ learner would actually go to work on it. Both views now filter to
 rows and misconceptions still exist and are still tracked (§18 depends
 on them), they're just no longer surfaced as something to "complete" in
 either view.
+
+## 20. Fast-loop dispatch moved to a real queue (Inngest)
+
+§9 A3's original framing (in-process `after()` + a pending-row sweep as a
+"demo-scale stand-in for a real message broker") had two real gaps once
+looked at closely, not just theoretical ones: the sweep only ever looked at
+`status = 'pending'`, so a row that reached `status = 'error'` (e.g. a
+transient Gemini call failure during Signal-Extraction) was never retried —
+first failure was terminal, forever; and there was no backoff at all.
+
+Rather than patch that in place (e.g. a Postgres `AFTER INSERT` trigger /
+Database Webhook was evaluated and rejected — `pg_net`-based webhooks are
+at-most-once with no automatic retry, so it would have swapped one
+unreliable dispatch path for a different one without fixing the abandoned-
+`error`-rows problem, and would have needed a hand-rolled atomic-claim
+protocol to make concurrent dispatch paths safe), the fast-loop now runs on
+[Inngest](https://www.inngest.com), a queue built for exactly this:
+
+- `POST /api/chat`'s `after()` callback still inserts the `turn_events` row,
+  but instead of calling the Signal-Extraction processor inline, it enqueues
+  a `turn_event/created` event (`lib/inngest/client.ts`).
+- An Inngest function (`processTurnEventFn`, `lib/inngest/functions.ts`) runs
+  the actual processing with automatic retry + backoff (4 retries, 5 attempts
+  total). Its `onFailure` handler — invoked once, only after retries are
+  exhausted — is now the single place that writes `status: 'error'`, so a
+  transient failure no longer abandons a row on the first attempt.
+- A second, *cron-triggered* Inngest function (`sweepStaleTurnEventsFn`)
+  re-enqueues any row still `status: 'pending'` past a staleness window. This
+  is the one gap Inngest's own retry logic can't cover on its own — a
+  `turn_events` row whose `inngest.send()` call itself never reached Inngest
+  — and it's a genuinely rare backstop now, not the primary recovery path the
+  original sweep endpoint was.
+- There is no more Vercel Cron config, no `/api/turn-events/process` HTTP
+  endpoint, and no `CRON_SECRET` — both dispatch and its backstop live
+  entirely inside Inngest, authenticated via Inngest's own signing-key
+  mechanism rather than a hand-rolled bearer token.
+
+This also simplifies rather than complicates the concurrency story: because
+exactly one place (`after()`, or the cron backstop) ever enqueues a given
+`turn_events` row, there's no multi-dispatcher race to guard against, so no
+atomic-claim step or extra `status` value was needed — unlike the rejected
+webhook design, which would have required both.
+
+§6's step 5 and §9 A3 should be read with this correction: "an in-process
+background task + pending-row sweep" is no longer accurate — it's now a real
+queue with retry/backoff/dead-letter, the actual production answer A3
+originally deferred.

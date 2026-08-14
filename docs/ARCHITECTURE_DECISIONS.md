@@ -212,7 +212,11 @@ since curriculum is tenant-wide, not learner-scoped). `turn-events/process`
 is a system sweep endpoint rather than a user action, so it's gated
 differently: a shared-secret bearer token (`CRON_SECRET`), matching
 Vercel Cron's convention of auto-sending that header on scheduled
-invocations. Also fixed at the same time: several routes were
+invocations. **Later correction:** this endpoint and its bearer-token
+gate no longer exist — dispatch moved to Inngest (see the scaling
+section below), which authenticates scheduled/event-triggered
+invocations through its own signing-key mechanism, so there's no
+bespoke secret to manage for this anymore. Also fixed at the same time: several routes were
 returning raw Supabase error messages (schema/column details) straight
 to the client on unexpected 500s; a shared `serverErrorResponse()`
 helper (`lib/api/error-response.ts`) now logs the real error
@@ -280,7 +284,23 @@ exercises that at demo scale:
   aspirational — a dropped `after()` callback left a `pending` row
   with no automatic recovery. Fixed with a `vercel.json` cron entry
   invoking it every 5 minutes, authenticated via `CRON_SECRET` (see
-  the security-section correction above).
+  the security-section correction above). **Further correction —
+  replaced with a real queue (Inngest):** the cron sweep still had no
+  retry/backoff and, worse, abandoned any row that reached
+  `status: 'error'` forever (first failure was terminal, nothing ever
+  looked at `error` rows again). Rather than build a bespoke claim/retry
+  protocol on top of Postgres, `POST /api/chat`'s `after()` callback now
+  enqueues a `turn_event/created` Inngest event instead of calling the
+  processor inline; an Inngest function runs it with automatic
+  retry+backoff (4 retries, so 5 attempts total) and only marks
+  `status: 'error'` via its `onFailure` handler once those are
+  exhausted. The Vercel Cron config, the `/api/turn-events/process`
+  HTTP endpoint, and `CRON_SECRET` are all gone — the one remaining
+  backstop (recovering a `turn_events` row whose `inngest.send()` call
+  itself never reached Inngest) is a second, *cron-triggered* Inngest
+  function, so scheduling lives entirely inside Inngest rather than
+  split across Vercel Cron and a hand-authenticated endpoint. See
+  `lib/inngest/functions.ts`.
 - `bkt_concept_params` as data means recalibrating a concept's
   difficulty from real usage data is an `UPDATE`, not a deploy.
 - The `concept_id` decoupling means a second market/subject is a

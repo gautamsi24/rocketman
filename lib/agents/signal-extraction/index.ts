@@ -49,6 +49,10 @@ export async function processTurnEvent(
     .single();
   if (turnEventError) throw turnEventError;
 
+  // Idempotency guard: a row already marked processed (e.g. reprocessed via
+  // the sweep backstop after already succeeding) is a no-op, not an error.
+  if (turnEvent.status === "processed") return;
+
   if (!turnEvent.concept_id) {
     await supabase
       .from("turn_events")
@@ -59,58 +63,51 @@ export async function processTurnEvent(
 
   const conceptId = turnEvent.concept_id;
 
-  try {
-    const candidates = await getCandidateMisconceptions(
-      supabase,
-      turnEvent.tenant_id,
-      conceptId
-    );
+  // Let failures throw -- Inngest's retry/backoff wraps this call and its
+  // onFailure handler is the one place that marks status: 'error', only
+  // once retries are exhausted (see lib/inngest/functions.ts).
+  const candidates = await getCandidateMisconceptions(
+    supabase,
+    turnEvent.tenant_id,
+    conceptId
+  );
 
-    const { output } = await generateText({
-      model: classificationModel,
-      output: Output.object({
-        schema: buildSignalExtractionSchema(candidates.map((c) => c.code)),
-      }),
-      prompt: buildClassificationPrompt({
-        learnerMessage: turnEvent.learner_message,
-        tutorMessage: turnEvent.tutor_message,
-        candidates,
-      }),
+  const { output } = await generateText({
+    model: classificationModel,
+    output: Output.object({
+      schema: buildSignalExtractionSchema(candidates.map((c) => c.code)),
+    }),
+    prompt: buildClassificationPrompt({
+      learnerMessage: turnEvent.learner_message,
+      tutorMessage: turnEvent.tutor_message,
+      candidates,
+    }),
+  });
+
+  const candidateByCode = new Map(candidates.map((c) => [c.code, c]));
+  const matchedMisconceptions = output.matchedMisconceptionCodes
+    .map((code) => candidateByCode.get(code))
+    .filter((c): c is MisconceptionCatalogEntry => c !== undefined);
+
+  if (output.correctness !== "not_gradable") {
+    await applyGradedUpdate(supabase, {
+      tenantId: turnEvent.tenant_id,
+      learnerId: turnEvent.learner_id,
+      conceptId,
+      correct: output.correctness === "correct",
     });
-
-    const candidateByCode = new Map(candidates.map((c) => [c.code, c]));
-    const matchedMisconceptions = output.matchedMisconceptionCodes
-      .map((code) => candidateByCode.get(code))
-      .filter((c): c is MisconceptionCatalogEntry => c !== undefined);
-
-    if (output.correctness !== "not_gradable") {
-      await applyGradedUpdate(supabase, {
-        tenantId: turnEvent.tenant_id,
-        learnerId: turnEvent.learner_id,
-        conceptId,
-        correct: output.correctness === "correct",
-      });
-    }
-
-    for (const misconception of matchedMisconceptions) {
-      await recordMisconceptionEvidence(supabase, {
-        tenantId: turnEvent.tenant_id,
-        learnerId: turnEvent.learner_id,
-        misconceptionId: misconception.id,
-      });
-    }
-
-    await supabase
-      .from("turn_events")
-      .update({ status: "processed", processed_at: new Date().toISOString() })
-      .eq("id", turnEventId);
-  } catch (err) {
-    await supabase
-      .from("turn_events")
-      .update({
-        status: "error",
-        error_detail: err instanceof Error ? err.message : String(err),
-      })
-      .eq("id", turnEventId);
   }
+
+  for (const misconception of matchedMisconceptions) {
+    await recordMisconceptionEvidence(supabase, {
+      tenantId: turnEvent.tenant_id,
+      learnerId: turnEvent.learner_id,
+      misconceptionId: misconception.id,
+    });
+  }
+
+  await supabase
+    .from("turn_events")
+    .update({ status: "processed", processed_at: new Date().toISOString() })
+    .eq("id", turnEventId);
 }
