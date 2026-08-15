@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth/require-role";
 import { masteryToSequentialColor } from "@/lib/client/palette";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -24,7 +25,11 @@ function MasteryBar({ value }: { value: number }) {
 function LearnerRow({ learner }: { learner: LearnerProgress }) {
   return (
     <tr className="border-b last:border-0">
-      <td className="py-3 pr-4 pl-4 font-medium">{learner.displayName}</td>
+      <td className="py-3 pr-4 pl-4 font-medium">
+        <Link href={`/tutor/learners/${learner.id}`} className="hover:underline">
+          {learner.displayName}
+        </Link>
+      </td>
       <td className="py-3 pr-4 tabular-nums">
         {learner.masteredCount}/{learner.totalConcepts}
       </td>

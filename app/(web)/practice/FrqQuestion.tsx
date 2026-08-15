@@ -1,24 +1,23 @@
 "use client";
 
 import { CheckIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type {
-  FrqAttemptResult,
-  FrqSetQuestion,
-  FrqScoredPoint,
-} from "@/lib/curriculum/frq";
+import type { FrqSetQuestion, FrqScoredPoint } from "@/lib/curriculum/frq";
 import { cn } from "@/lib/utils";
+
+export interface DraftAnswer {
+  text: string;
+  image: File | null;
+}
 
 interface Verdict {
   awardedPoints: number;
   maxPoints: number;
   correct: boolean;
   points: FrqScoredPoint[];
-  // Overall feedback is only returned on a fresh grade; a rehydrated prior
-  // attempt shows the per-point breakdown without it.
   feedback: string | null;
 }
 
@@ -29,87 +28,57 @@ function attemptToVerdict(question: FrqSetQuestion): Verdict | null {
     maxPoints: question.attempt.maxPoints,
     correct: question.attempt.correct,
     points: question.attempt.points,
-    feedback: null,
+    feedback: question.attempt.feedback,
   };
 }
 
 export function FrqQuestion({
   question,
-  onGraded,
+  value,
+  onChange,
+  disabled,
+  failed,
 }: {
   question: FrqSetQuestion;
-  onGraded: (questionId: string, attempt: FrqAttemptResult) => void;
+  // Controlled from PracticeExperience -- all 6 questions' drafts are held
+  // together so a single "Submit all" can send them in one request.
+  value: DraftAnswer;
+  onChange: (value: DraftAnswer) => void;
+  // True while the batch grade request is in flight.
+  disabled: boolean;
+  // True if this question came back in the last batch response's
+  // failedQuestionIds -- still ungraded, but not because it was left blank.
+  failed: boolean;
 }) {
-  const initialVerdict = attemptToVerdict(question);
-  const [answer, setAnswer] = useState(question.attempt?.answerText ?? "");
-  const [image, setImage] = useState<File | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "submitting" | "graded">(
-    initialVerdict ? "graded" : "idle"
-  );
-  const [verdict, setVerdict] = useState<Verdict | null>(initialVerdict);
-  const [error, setError] = useState<string | null>(null);
+  const verdict = attemptToVerdict(question);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Mirrors imageUrl for the unmount-cleanup effect below, which needs the
-  // latest value in a stable closure without re-subscribing on every change.
-  const imageUrlRef = useRef<string | null>(null);
 
-  const onPickImage = useCallback((file: File | null) => {
-    setImage(file);
-    setImageUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      const next = file ? URL.createObjectURL(file) : null;
-      imageUrlRef.current = next;
-      return next;
-    });
-  }, []);
-
-  // The picked-image preview is a blob: URL -- revoke it on unmount (e.g.
-  // "New set" remounts every question via key={question.id}), not just when
-  // replaced by a different picked image.
+  // The picked-image preview is a blob: URL, derived from the (parent-owned)
+  // File -- recomputed whenever the File changes. Revocation is a pure side
+  // effect (no state to set), so it lives in its own cleanup-only effect:
+  // fires on the next url change and on unmount (e.g. "New set" remounts
+  // every question via key={question.id}).
+  const imageUrl = useMemo(
+    () => (value.image ? URL.createObjectURL(value.image) : null),
+    [value.image]
+  );
   useEffect(() => {
     return () => {
-      if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
     };
-  }, []);
+  }, [imageUrl]);
 
-  const submit = useCallback(async () => {
-    if (status === "submitting") return;
-    if (!answer.trim() && !image) return;
-    setStatus("submitting");
-    setError(null);
-    try {
-      const form = new FormData();
-      form.set("answerText", answer);
-      if (image) form.set("image", image);
-      const res = await fetch(`/api/frq/${question.id}/submit`, {
-        method: "POST",
-        body: form,
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(body?.error ?? "Grading failed");
-      }
-      const graded = (await res.json()) as Verdict & { counted: boolean };
-      setVerdict(graded);
-      setStatus("graded");
-      if (graded.counted) {
-        onGraded(question.id, {
-          awardedPoints: graded.awardedPoints,
-          maxPoints: graded.maxPoints,
-          correct: graded.correct,
-          points: graded.points,
-          answerText: answer || null,
-          hasImage: !!image,
-        });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Grading failed");
-      setStatus("idle");
-    }
-  }, [answer, image, question.id, status, onGraded]);
+  const saveDraft = (text: string) => {
+    fetch(`/api/frq/${question.id}/draft`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answerText: text }),
+    }).catch(() => {
+      // Best-effort: the learner's still-visible local text is the source of
+      // truth for this session; a failed autosave just means a reload would
+      // lose it, not that anything already submitted is at risk.
+    });
+  };
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border bg-card p-4">
@@ -137,16 +106,21 @@ export function FrqQuestion({
 
       <p className="text-sm font-medium">{question.prompt}</p>
 
-      {status === "graded" && verdict ? (
-        <GradedView verdict={verdict} showedImage={question.attempt?.hasImage} />
+      {verdict ? (
+        <GradedView
+          verdict={verdict}
+          showedImage={question.attempt?.hasImage}
+          tutorNotes={question.tutorNotes}
+        />
       ) : (
         <div className="flex flex-col gap-3">
           <textarea
             className="min-h-32 w-full resize-y rounded-lg border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
             placeholder="Write your response..."
-            value={answer}
-            onChange={(event) => setAnswer(event.target.value)}
-            disabled={status === "submitting"}
+            value={value.text}
+            onChange={(event) => onChange({ ...value, text: event.target.value })}
+            onBlur={(event) => saveDraft(event.target.value)}
+            disabled={disabled}
           />
 
           {question.requiresDiagram ? (
@@ -157,7 +131,7 @@ export function FrqQuestion({
                 accept="image/*"
                 className="hidden"
                 onChange={(event) =>
-                  onPickImage(event.target.files?.[0] ?? null)
+                  onChange({ ...value, image: event.target.files?.[0] ?? null })
                 }
               />
               <div className="flex items-center gap-2">
@@ -166,13 +140,13 @@ export function FrqQuestion({
                   size="sm"
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={status === "submitting"}
+                  disabled={disabled}
                 >
-                  {image ? "Change photo" : "Upload photo of your graph/diagram"}
+                  {value.image ? "Change photo" : "Upload photo of your graph/diagram"}
                 </Button>
-                {image ? (
+                {value.image ? (
                   <span className="truncate text-xs text-muted-foreground">
-                    {image.name}
+                    {value.image.name}
                   </span>
                 ) : null}
               </div>
@@ -187,21 +161,17 @@ export function FrqQuestion({
             </div>
           ) : null}
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-          <Button
-            onClick={submit}
-            disabled={
-              status === "submitting" ||
-              (!answer.trim() && !image) ||
-              (question.requiresDiagram && !image)
-            }
-          >
-            {status === "submitting" ? "Grading..." : "Submit answer"}
-          </Button>
-          {question.requiresDiagram && !image ? (
+          {question.requiresDiagram && !value.image ? (
             <p className="text-xs text-muted-foreground">
-              This question needs a photo of your graph or diagram to grade.
+              A photo of your graph or diagram helps but isn&apos;t required --
+              describing it in words works too.
+            </p>
+          ) : null}
+
+          {failed ? (
+            <p className="text-sm text-destructive">
+              Couldn&apos;t grade this one -- your answer is still here, try
+              submitting again.
             </p>
           ) : null}
         </div>
@@ -213,9 +183,11 @@ export function FrqQuestion({
 function GradedView({
   verdict,
   showedImage,
+  tutorNotes,
 }: {
   verdict: Verdict;
   showedImage?: boolean;
+  tutorNotes: FrqSetQuestion["tutorNotes"];
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -265,6 +237,22 @@ function GradedView({
         <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
           {verdict.feedback}
         </p>
+      ) : null}
+
+      {tutorNotes.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {tutorNotes.map((note) => (
+            <div
+              key={note.id}
+              className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm"
+            >
+              <p className="text-xs font-medium uppercase tracking-wide text-primary">
+                From your tutor
+              </p>
+              <p className="mt-1 text-muted-foreground">{note.noteText}</p>
+            </div>
+          ))}
+        </div>
       ) : null}
     </div>
   );

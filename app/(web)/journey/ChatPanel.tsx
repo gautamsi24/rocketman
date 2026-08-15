@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CheckYourself } from "./CheckYourself";
 import { ChatWindow } from "../chat/ChatWindow";
 import { PodcastButton } from "../chat/PodcastButton";
+import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -107,39 +108,45 @@ export function ChatPanel({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* Chat stays mounted (hidden) so the conversation isn't lost when the
-            learner peeks at a check question. */}
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 flex-col p-3",
-            checkActive && "hidden"
-          )}
-        >
-          {sessionId ? (
-            <ChatWindow
-              conceptId={topic.conceptId}
-              onConceptSwitch={onConceptSwitch}
-              sessionId={sessionId}
-            />
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              Starting a session...
-            </div>
-          )}
-        </div>
-
-        {checkActive ? (
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <CheckYourself
-              key={topic.conceptId}
-              conceptId={topic.conceptId}
-              onExplore={() => setTab("chat")}
-              onMasteryChanged={onMasteryChanged}
-            />
+      {/* Shared so CheckYourself's "explore in chat" button can write
+          straight into ChatWindow's prompt input (same mechanism MicButton
+          uses) -- both live under one provider instead of ChatWindow owning
+          its own. */}
+      <PromptInputProvider>
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Chat stays mounted (hidden) so the conversation isn't lost when
+              the learner peeks at a check question. */}
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col p-3",
+              checkActive && "hidden"
+            )}
+          >
+            {sessionId ? (
+              <ChatWindow
+                conceptId={topic.conceptId}
+                onConceptSwitch={onConceptSwitch}
+                sessionId={sessionId}
+              />
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Starting a session...
+              </div>
+            )}
           </div>
-        ) : null}
-      </div>
+
+          {checkActive ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <CheckYourself
+                key={topic.conceptId}
+                conceptId={topic.conceptId}
+                onExplore={() => setTab("chat")}
+                onMasteryChanged={onMasteryChanged}
+              />
+            </div>
+          ) : null}
+        </div>
+      </PromptInputProvider>
     </div>
   );
 }

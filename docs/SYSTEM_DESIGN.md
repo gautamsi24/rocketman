@@ -251,7 +251,7 @@ retrieval.
 | Entity | Key attributes | Purpose |
 |---|---|---|
 | `tenants` | `id`, `name` | Org boundary. One row in v1; exists so the seam isn't a schema migration later. |
-| `users` | `id`, `username`, `password_hash`, `role` (`learner`\|`tutor`\|`evaluator`) | Authentication identity (§11) — kept separate from `learners` rather than columns on it, since credentials/role are an identity concern distinct from being an AP-Bio learner profile. `role` is schema-only in v1 (no tutor/evaluator UI exists yet, per the same don't-build-speculative-infra principle as §2/§9 A2). |
+| `users` | `id`, `username`, `password_hash`, `role` (`learner`\|`tutor`\|`evaluator`) | Authentication identity (§11) — kept separate from `learners` rather than columns on it, since credentials/role are an identity concern distinct from being an AP-Bio learner profile. `evaluator` is still schema-only; `tutor` has a real console + a suggestion-writing capability (§21). |
 | `tutor_profiles` | `id`, `tenant_id` (unique), `name`, `tone`, `formality`, `vocabulary_level` | One row per tenant, read by prompt construction (§6) — makes "how the tutor presents itself" a queryable fact instead of a string hardcoded into a prompt template. (Named "Tutor Profile" rather than "persona" — it's a configurable presentation profile, not a claim about market-specific personas this build doesn't yet have.) |
 | `learners` | `id`, `tenant_id`, `user_id` (nullable), `market_id`, `age_band` | Links the learner to an org and a market. `market_id`/`age_band` are read by prompt construction (§6) — a real, if currently single-valued, lever. `user_id` links to the authenticated account that owns this profile (§11); nullable so the original pre-auth seed learner keeps working as internal test data, permanently unreachable through login. |
 | `concepts` | `id`, `tenant_id`, `unit_code`, `unit_label`, `content_lo_code`, `content_lo_label`, `science_practice_code`, `science_practice_label` | Owned by the Curriculum Service. Two-axis (content LO × science practice) per the AP Bio CED grounding in §8 — but the Memory Engine (§4.B/§4.C, the BKT engine) never queries these columns; it only ever holds a `concept_id` foreign key. |
@@ -539,8 +539,11 @@ login form in front of routes that still trusted a client-supplied
   `learners` because credentials and role are an identity concern, not
   an AP-Bio-learner-profile concern — a future tutor or evaluator
   account is a `users` row that never needs to become a `learners` row.
-  `role` is schema-only in v1: no tutor/evaluator UI exists, matching
-  the same don't-build-speculative-infra principle as §2/§9 A2.
+  `role` was schema-only at first (no tutor/evaluator UI), matching the
+  same don't-build-speculative-infra principle as §2/§9 A2. **No longer
+  true for `tutor`** — a read-only roster (`/tutor`) shipped, then a
+  per-learner drill-down with a suggestion-writing capability (§21).
+  `evaluator` remains schema-only; there's still no UI or route for it.
 - **Sessions are a signed, httpOnly cookie** (`jose`, HS256, 7-day
   expiry) carrying only `{ learnerId }` — no name/email, consistent
   with the PII-minimization guardrail in §7. Passwords are hashed with
@@ -794,10 +797,12 @@ exactly the failure mode both bugs shared.
 **Correction to §6/§7's framing:** those sections describe Signal-
 Extraction (plus the trusted assertion endpoint) as the complete list of
 things allowed to write `concept_mastery`/`learner_misconceptions`. That's
-no longer accurate — Practice FRQ submission (`/api/frq/[questionId]/
-submit`) is a third path, added deliberately rather than discovered as a
-gap. The real invariant was never "only one named agent," it's "only
-narrow, validated, structured-output LLM calls the Tutor Agent itself
+no longer accurate — Practice FRQ submission is a third path, added
+deliberately rather than discovered as a gap (the underlying write logic,
+`submitFrqAnswer`, is now reachable from both the single-question and
+exam-style batch submit routes — see §21). The real invariant was never
+"only one named agent," it's "only narrow, validated, structured-output
+LLM calls the Tutor Agent itself
 never touches" — FRQ grading satisfies that bar the same way
 Signal-Extraction does, so it earns the same trust.
 
@@ -924,3 +929,60 @@ webhook design, which would have required both.
 background task + pending-row sweep" is no longer accurate — it's now a real
 queue with retry/backoff/dead-letter, the actual production answer A3
 originally deferred.
+
+## 21. Practice FRQs go exam-style, plus a tutor-facing suggestion loop
+
+Three related changes to Practice FRQs, shipped together because they're
+genuinely entangled (batching submission is what created the need for draft
+persistence; a persisted answer is what a tutor note attaches to).
+
+**Batch submit, not per-question.** Each of the 6 questions in a set used to
+post to `/api/frq/[questionId]/submit` and get graded the instant it was
+answered. That's closer to a quiz than an exam. Submission is now exam-style:
+answer as many as you want, then one "Submit all answers" grades every
+drafted question in one request (`POST /api/frq/sets/[setId]/submit`).
+Blank questions are silently skipped, not errored — a learner can submit a
+partial set and finish the rest later, same flexibility a real exam allows.
+The atomic-claim-then-compensate logic §18 already established (claim via
+`answered_at IS NULL`, unstamp on a failed memory write) didn't change — it
+was extracted into `submitFrqAnswer` (`lib/agents/frq/submit.ts`) so the
+single-question route and the new batch route share one implementation
+instead of two copies drifting apart. Each question in a batch is graded
+independently: one question's grading failure (e.g. a transient Gemini
+error) no longer costs the other five their real grades — the batch response
+carries a `failedQuestionIds` list so the UI can flag just that one.
+
+**Draft persistence closes a real gap, not a nice-to-have.** Before this,
+an in-progress answer lived only in React state — a reload lost it, and
+nothing in the codebase autosaved anything (confirmed: no debounce/draft
+pattern existed anywhere). `PATCH /api/frq/[questionId]/draft` writes
+`answer_text` early (reusing the existing column, no schema change for this
+part), fired on textarea blur rather than a debounce timer — event-driven,
+matching this codebase's stated preference over effect-driven autosave.
+Known, accepted gap: a picked-but-unsubmitted diagram photo isn't
+draft-persisted (a browser `File` can't survive a reload regardless of
+schema, and uploading on every pick before the learner commits to it is
+real complexity this didn't need, especially now that a diagram is optional
+per the earlier `requiresDiagram` fix).
+
+**Tutor notes are a new, deliberately separate concept from Memory Engine
+writes.** `frq_tutor_notes` (new table) lets a tutor leave a suggestion on
+a specific graded FRQ answer, visible back to the learner under that
+question. This is **not** a fourth path into `concept_mastery`/
+`learner_misconceptions` — §18's "only narrow, validated, structured-output
+LLM calls the Tutor Agent never touches" invariant is about *evidence* that
+moves BKT/misconception state, and a tutor's free-text note is neither: it's
+a human-authored annotation, stored in its own table, never read by the BKT
+engine or Signal-Extraction. Worth stating explicitly so this doesn't get
+misread later as quietly widening who can write learner memory.
+
+This also turned the tutor console from fully read-only into having its
+first mutation. `requireRole()` (page-only, redirects) wasn't the right
+shape for the new note-posting Route Handler, so `requireTutorContext()`
+(`lib/api/guards.ts`) mirrors `requireLearnerContext`'s 401/403 shape for
+the tutor role. The new drill-down page (`/tutor/learners/[id]`) also
+deliberately shows a learner's **full** answered-FRQ history across every
+set, not just the most recent one — a real, intentional difference from the
+learner's own Practice view (which only ever reads the current set): a
+tutor reviewing past work has a different, broader need than a learner
+mid-session.

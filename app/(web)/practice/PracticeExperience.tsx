@@ -1,19 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FrqQuestion } from "./FrqQuestion";
+import { FrqQuestion, type DraftAnswer } from "./FrqQuestion";
 import { Button } from "@/components/ui/button";
 import { TASK_WORD_LIST } from "@/lib/curriculum/frq-task-words";
-import type { FrqAttemptResult, FrqSet } from "@/lib/curriculum/frq";
+import type { FrqSet } from "@/lib/curriculum/frq";
+
+function seedAnswers(set: FrqSet | null): Record<string, DraftAnswer> {
+  const seed: Record<string, DraftAnswer> = {};
+  if (!set) return seed;
+  for (const q of set.questions) {
+    if (!q.attempt) seed[q.id] = { text: q.draftAnswerText ?? "", image: null };
+  }
+  return seed;
+}
 
 export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }) {
   const [set, setSet] = useState<FrqSet | null>(initialSet);
-  // Points earned per graded question this session, seeded from the loaded set
-  // and extended as the learner answers -- drives the live progress header.
-  const [earned, setEarned] = useState<Record<string, number>>(() =>
-    seedEarned(initialSet)
+  const [answers, setAnswers] = useState<Record<string, DraftAnswer>>(() =>
+    seedAnswers(initialSet)
+  );
+  const [failedQuestionIds, setFailedQuestionIds] = useState<Set<string>>(
+    new Set()
   );
   const [generating, setGenerating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoGenRef = useRef(false);
 
@@ -25,7 +36,8 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
       if (!res.ok) throw new Error("Could not generate a practice set");
       const { set: next } = (await res.json()) as { set: FrqSet };
       setSet(next);
-      setEarned(seedEarned(next));
+      setAnswers(seedAnswers(next));
+      setFailedQuestionIds(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not generate a set");
     } finally {
@@ -36,8 +48,7 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
   // Auto-generate the first set when the learner has none, or their latest set
   // is fully answered (no pending questions left to do). Guarded so it fires
   // once, not on every render.
-  const noPending =
-    !set || set.questions.every((q) => q.attempt !== null);
+  const noPending = !set || set.questions.every((q) => q.attempt !== null);
   useEffect(() => {
     if (noPending && !generating && !autoGenRef.current) {
       autoGenRef.current = true;
@@ -45,41 +56,55 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
     }
   }, [noPending, generating, generate]);
 
-  const handleGraded = useCallback(
-    (questionId: string, attempt: FrqAttemptResult) => {
-      setEarned((prev) => ({ ...prev, [questionId]: attempt.awardedPoints }));
-      // Patch the graded question's attempt into `set` itself, not just the
-      // local `earned` map -- `noPending` reads set.questions[].attempt, so
-      // without this the auto-continue-to-a-new-set effect never fires.
-      setSet((prev) =>
-        prev
-          ? {
-              ...prev,
-              questions: prev.questions.map((q) =>
-                q.id === questionId ? { ...q, attempt } : q
-              ),
-            }
-          : prev
-      );
-    },
-    []
+  const updateAnswer = useCallback((questionId: string, value: DraftAnswer) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  }, []);
+
+  const hasAnyDraft = useMemo(
+    () =>
+      Object.values(answers).some(
+        (a) => a.text.trim().length > 0 || a.image !== null
+      ),
+    [answers]
   );
 
-  const progress = useMemo(() => {
-    if (!set) return { answered: 0, total: 0, pointsAwarded: 0, pointsPossible: 0 };
-    const answeredIds = Object.keys(earned);
-    return {
-      answered: answeredIds.length,
-      total: set.questions.length,
-      pointsAwarded: answeredIds.reduce((sum, id) => sum + earned[id], 0),
-      pointsPossible: set.questions
-        .filter((q) => earned[q.id] !== undefined)
-        .reduce((sum, q) => sum + q.maxPoints, 0),
-    };
-  }, [earned, set]);
+  const submitAll = useCallback(async () => {
+    if (!set || submitting || !hasAnyDraft) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      for (const question of set.questions) {
+        if (question.attempt) continue;
+        const draft = answers[question.id];
+        if (!draft) continue;
+        if (draft.text.trim()) form.set(`answerText_${question.id}`, draft.text);
+        if (draft.image) form.set(`image_${question.id}`, draft.image);
+      }
+
+      const res = await fetch(`/api/frq/sets/${set.setId}/submit`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) throw new Error("Could not grade your answers");
+      const { set: nextSet, failedQuestionIds: failed } = (await res.json()) as {
+        set: FrqSet;
+        failedQuestionIds: string[];
+      };
+      setSet(nextSet);
+      setAnswers(seedAnswers(nextSet));
+      setFailedQuestionIds(new Set(failed));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not grade your answers");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [set, answers, submitting, hasAnyDraft]);
 
   const pct =
-    progress.total > 0 ? Math.round((progress.answered / progress.total) * 100) : 0;
+    set && set.summary.total > 0
+      ? Math.round((set.summary.answered / set.summary.total) * 100)
+      : 0;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4">
@@ -88,15 +113,16 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
           <div>
             <h1 className="text-xl font-semibold">Practice FRQs</h1>
             <p className="text-sm text-muted-foreground">
-              Fresh free-response questions targeting your weaker topics, graded
-              point by point against the rubric — the way the real exam is marked.
+              Fresh free-response questions targeting your weaker topics --
+              answer as many as you can, then submit the whole set to be
+              graded at once, the way the real exam works.
             </p>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={generate}
-            disabled={generating}
+            disabled={generating || submitting}
           >
             {generating ? "Generating..." : "New set"}
           </Button>
@@ -111,9 +137,9 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
               />
             </div>
             <span className="text-sm text-muted-foreground tabular-nums">
-              {progress.answered}/{progress.total} answered
-              {progress.answered > 0
-                ? ` · ${progress.pointsAwarded}/${progress.pointsPossible} pts`
+              {set.summary.answered}/{set.summary.total} graded
+              {set.summary.answered > 0
+                ? ` · ${set.summary.pointsAwarded}/${set.summary.pointsPossible} pts`
                 : ""}
             </span>
           </div>
@@ -169,20 +195,26 @@ export function PracticeExperience({ initialSet }: { initialSet: FrqSet | null }
             <FrqQuestion
               key={question.id}
               question={question}
-              onGraded={handleGraded}
+              value={answers[question.id] ?? { text: "", image: null }}
+              onChange={(value) => updateAnswer(question.id, value)}
+              disabled={submitting}
+              failed={failedQuestionIds.has(question.id)}
             />
           ))}
+
+          {!noPending ? (
+            <div className="flex flex-col items-start gap-2">
+              <Button onClick={submitAll} disabled={submitting || !hasAnyDraft}>
+                {submitting ? "Grading your answers..." : "Submit all answers"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Only the questions you&apos;ve answered get graded -- leave the
+                rest for later and submit again when you&apos;re ready.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
   );
-}
-
-function seedEarned(set: FrqSet | null): Record<string, number> {
-  const seed: Record<string, number> = {};
-  if (!set) return seed;
-  for (const q of set.questions) {
-    if (q.attempt) seed[q.id] = q.attempt.awardedPoints;
-  }
-  return seed;
 }

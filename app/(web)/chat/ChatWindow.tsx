@@ -19,7 +19,6 @@ import {
   PromptInput,
   PromptInputBody,
   PromptInputFooter,
-  PromptInputProvider,
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input";
@@ -169,31 +168,29 @@ export function ChatWindow({
         </Alert>
       ) : null}
 
-      <PromptInputProvider>
-        <PromptInput
-          onSubmit={(message) => {
-            if (!message.text.trim() || !conceptId) return;
-            sendMessage({ text: message.text });
-          }}
-        >
-          <PromptInputBody>
-            <PromptInputTextarea
-              placeholder={
-                conceptId
-                  ? "Type your answer or question..."
-                  : "Pick a topic to get started"
-              }
-              disabled={!conceptId}
-            />
-          </PromptInputBody>
-          <PromptInputFooter>
-            <div className="ml-auto flex items-center gap-1">
-              <MicButton disabled={!conceptId} />
-              <PromptInputSubmit status={status} disabled={!conceptId} />
-            </div>
-          </PromptInputFooter>
-        </PromptInput>
-      </PromptInputProvider>
+      <PromptInput
+        onSubmit={(message) => {
+          if (!message.text.trim() || !conceptId) return;
+          sendMessage({ text: message.text });
+        }}
+      >
+        <PromptInputBody>
+          <PromptInputTextarea
+            placeholder={
+              conceptId
+                ? "Type your answer or question..."
+                : "Pick a topic to get started"
+            }
+            disabled={!conceptId}
+          />
+        </PromptInputBody>
+        <PromptInputFooter>
+          <div className="ml-auto flex items-center gap-1">
+            <MicButton disabled={!conceptId} />
+            <PromptInputSubmit status={status} disabled={!conceptId} />
+          </div>
+        </PromptInputFooter>
+      </PromptInput>
     </div>
   );
 }

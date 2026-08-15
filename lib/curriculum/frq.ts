@@ -27,6 +27,13 @@ export interface FrqAttemptResult {
   points: FrqScoredPoint[];
   answerText: string | null;
   hasImage: boolean;
+  feedback: string | null;
+}
+
+export interface FrqTutorNote {
+  id: string;
+  noteText: string;
+  createdAt: string;
 }
 
 export interface FrqSetQuestion {
@@ -39,6 +46,11 @@ export interface FrqSetQuestion {
   prompt: string;
   maxPoints: number;
   attempt: FrqAttemptResult | null;
+  // Saved answer text while the question is still unanswered -- lets a
+  // reload/navigation restore what the learner already typed. Always null
+  // once attempt is set.
+  draftAnswerText: string | null;
+  tutorNotes: FrqTutorNote[];
 }
 
 export interface FrqSet {
@@ -91,11 +103,13 @@ function toAttempt(
     points: row.points_detail ?? [],
     answerText: row.answer_text,
     hasImage: row.image_path !== null,
+    feedback: row.feedback,
   };
 }
 
 function toSet(
-  rows: Database["public"]["Tables"]["frq_questions"]["Row"][]
+  rows: Database["public"]["Tables"]["frq_questions"]["Row"][],
+  notesByQuestionId: Map<string, FrqTutorNote[]> = new Map()
 ): FrqSet {
   const questions: FrqSetQuestion[] = rows.map((row) => ({
     id: row.id,
@@ -107,6 +121,8 @@ function toSet(
     prompt: row.prompt,
     maxPoints: row.max_points,
     attempt: toAttempt(row),
+    draftAnswerText: row.answered_at ? null : row.answer_text,
+    tutorNotes: notesByQuestionId.get(row.id) ?? [],
   }));
   const answered = questions.filter((q) => q.attempt !== null);
   return {
@@ -122,6 +138,32 @@ function toSet(
       pointsPossible: answered.reduce((sum, q) => sum + q.maxPoints, 0),
     },
   };
+}
+
+/**
+ * Tutor notes for a batch of questions, grouped by question id and ordered
+ * oldest-first within each group (a simple append-only thread, not editable).
+ */
+async function getTutorNotesByQuestionIds(
+  supabase: Client,
+  questionIds: string[]
+): Promise<Map<string, FrqTutorNote[]>> {
+  const notesByQuestionId = new Map<string, FrqTutorNote[]>();
+  if (questionIds.length === 0) return notesByQuestionId;
+
+  const { data, error } = await supabase
+    .from("frq_tutor_notes")
+    .select("id, frq_question_id, note_text, created_at")
+    .in("frq_question_id", questionIds)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    const list = notesByQuestionId.get(row.frq_question_id) ?? [];
+    list.push({ id: row.id, noteText: row.note_text, createdAt: row.created_at });
+    notesByQuestionId.set(row.frq_question_id, list);
+  }
+  return notesByQuestionId;
 }
 
 /**
@@ -150,7 +192,35 @@ export async function getCurrentFrqSet(
     .order("position", { ascending: true });
   if (rowsError) throw rowsError;
 
-  return toSet(rows ?? []);
+  const notesByQuestionId = await getTutorNotesByQuestionIds(
+    supabase,
+    (rows ?? []).map((row) => row.id)
+  );
+  return toSet(rows ?? [], notesByQuestionId);
+}
+
+/**
+ * A specific set by id, joined with answers and tutor notes -- same shape as
+ * getCurrentFrqSet but keyed by set_id instead of "most recent for this
+ * learner", used by the batch submit route to return the post-grade state.
+ */
+export async function getFrqSetById(
+  supabase: Client,
+  setId: string
+): Promise<FrqSet | null> {
+  const { data: rows, error } = await supabase
+    .from("frq_questions")
+    .select("*")
+    .eq("set_id", setId)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  if (!rows || rows.length === 0) return null;
+
+  const notesByQuestionId = await getTutorNotesByQuestionIds(
+    supabase,
+    rows.map((row) => row.id)
+  );
+  return toSet(rows, notesByQuestionId);
 }
 
 /**

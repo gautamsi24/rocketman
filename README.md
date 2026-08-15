@@ -13,15 +13,19 @@ Beyond the core chat tutor, the app includes:
 - **Journey** (`/journey`) — a mission-map view of AP Biology content, unit
   by unit, with mastery tracked per topic and a chat panel for working
   through any topic directly.
-- **Practice FRQs** (`/practice`) — free-response questions generated fresh
-  and targeted at a learner's weaker topics, graded point-by-point against a
-  rubric the way the real exam is scored (including diagram/graph uploads
-  for questions that require one).
+- **Practice FRQs** (`/practice`) — a set of free-response questions
+  generated fresh and targeted at a learner's weaker topics; answers persist
+  as drafts while working through the set, then the whole set is submitted
+  and graded at once, point-by-point against a rubric, the way the real exam
+  is scored (including optional diagram/graph uploads for questions that
+  call for one).
 - **My progress** (`/profile`) — the transparency view: a mastery heatmap,
   tracked misconceptions, durable learning-style insights, and a trend chart
   per topic, plus a cached per-topic audio "podcast" generated on request.
-- **Tutor console** (`/tutor`) — a read-only roster view for the `tutor`
-  role, showing every learner's progress at a glance.
+- **Tutor console** (`/tutor`) — a roster view for the `tutor` role showing
+  every learner's progress at a glance; opening a learner drills into their
+  Practice FRQ history, where a tutor can leave a suggestion on a specific
+  answer that the learner then sees on their own Practice page.
 
 See `docs/SYSTEM_DESIGN.md` for the full architecture and the reasoning
 behind it, and `docs/ARCHITECTURE_DECISIONS.md` for a decision-by-decision
@@ -112,7 +116,7 @@ rather start from zero.
 | `ben_weak`   | learner | Struggling -- low mastery and open misconceptions      |
 | `cleo_new`   | learner | Brand new -- little to no history yet                 |
 | `dev_new`    | learner | Brand new -- little to no history yet                 |
-| `tutor_demo` | tutor   | Read-only roster view (`/tutor`) across all learners   |
+| `tutor_demo` | tutor   | Roster view (`/tutor`) across all learners, with drill-down + suggestions |
 
 Logging in as a `learner` role lands on `/journey`; `tutor` lands on
 `/tutor`. Signing up creates a new `learner` account.

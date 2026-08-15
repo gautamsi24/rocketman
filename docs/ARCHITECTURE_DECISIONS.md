@@ -102,7 +102,27 @@ place to hit rate limits/deprecations instead of three.
   the Tutor Agent never touches," not literally one named agent — Quick
   check (`gradeCheckAnswer`) still only judges correctness and hasn't
   been extended to misconceptions yet, a known, tracked asymmetry, not
-  an oversight.
+  an oversight. **Further correction — batch, not per-question:** FRQ
+  submission was originally one question at a time, graded on submit.
+  It's now exam-style — answer as many of the 6 as you want, submit the
+  set once, grade all of them together (`POST
+  /api/frq/sets/[setId]/submit`), closer to how the real exam actually
+  works. The atomic-claim/compensate logic stayed exactly as it was,
+  just extracted into a shared `submitFrqAnswer` so per-question and
+  batch submission don't carry two copies of it. One new failure mode
+  batching introduces — one question's grading error shouldn't cost the
+  other five their real grades — is handled by grading each question in
+  the batch independently and reporting failures per-question, not
+  failing the whole request.
+- **Tutor notes are intentionally NOT a fifth write path into learner
+  memory.** A tutor can now leave a suggestion on a specific FRQ answer
+  (`frq_tutor_notes`, a new table, unrelated to `concept_mastery`/
+  `learner_misconceptions`). This is a human-authored annotation, not
+  evidence that moves BKT or misconception state — worth stating
+  explicitly so it doesn't get misread later as quietly widening who's
+  allowed to write memory. It also gave the tutor console (previously
+  fully read-only) its first mutation, gated by a new
+  `requireTutorContext()` guard mirroring the learner-side pattern.
 - **Consolidation Agent** (async, end-of-session) — needs the *whole*
   conversation, not a single turn, to extract 0–3 durable style/
   reasoning insights. Explicitly instructed not to restate
@@ -143,9 +163,12 @@ Three memory types, each enriched differently:
   isn't reliable enough to dedupe "same misconception, different
   phrasing" across sessions.
 - **Learner assertions** — a fourth, trusted enrichment path that
-  bypasses BKT math entirely (floor-bumps mastery to 0.85, confidence
+  bypasses BKT math entirely (floor-bumps mastery to 0.7, confidence
   to 0.6) since "I know this now" is a direct self-report, not
-  ambiguous evidence to weigh probabilistically.
+  ambiguous evidence to weigh probabilistically. The 0.7 is deliberately
+  held *below* the 0.85 completion threshold (`lib/profile/types.ts`), so
+  a self-report helps but can never on its own mark a concept complete —
+  that still requires graded correct answers.
 
 Decay is **read-time only** — an exponential half-life (30 days)
 toward a floor of 0.2, never toward zero (residual familiarity is more
@@ -186,9 +209,15 @@ bucket is private+proxied rather than public.
 
 Auth identity lives in a separate `users` table (not columns on
 `learners`) with bcrypt-hashed passwords and a `role` enum,
-`jose`-signed httpOnly session cookies carrying only `{ learnerId }`.
-A single DAL function (`getSessionLearnerId()`) is the sole source of
-truth, called directly in every protected route — deliberately **not**
+`jose`-signed httpOnly session cookies. **Correction:** the cookie
+payload is `{ userId, role, learnerId }`, not just `{ learnerId }` as
+originally written here — `role` was added once a `tutor` role needed
+routing/gating decisions a bare learner id couldn't answer.
+`getSessionLearnerId()` is still the sole source of truth for
+learner-scoped routes; a parallel `requireTutorContext()`
+(`lib/api/guards.ts`) does the equivalent 401/403 resolution for the
+tutor role, since `requireRole()` is page-only (it `redirect()`s,
+which isn't a valid Route Handler response). Deliberately **not**
 relying on Next 16's Proxy (renamed Middleware) as the sole gate, per
 Next's own bundled guidance that Proxy must never be the only check.
 Every learner-scoped route verifies resource ownership (401

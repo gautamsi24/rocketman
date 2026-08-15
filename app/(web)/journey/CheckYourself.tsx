@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { usePromptInputController } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import { useResource } from "@/hooks/use-resource";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,8 @@ export function CheckYourself({
   }>(`/api/concepts/${conceptId}/check-question`);
   const question = data?.question ?? null;
   const questionId = data?.questionId ?? null;
+
+  const promptInput = usePromptInputController();
 
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<"idle" | "grading" | "done">("idle");
@@ -94,7 +97,10 @@ export function CheckYourself({
               className="flex-1"
               size="sm"
               variant="ghost"
-              onClick={onExplore}
+              onClick={() => {
+                promptInput.textInput.setInput(question);
+                onExplore();
+              }}
               disabled={status === "grading"}
             >
               Don&apos;t know — explore in chat

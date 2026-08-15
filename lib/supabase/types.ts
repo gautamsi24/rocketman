@@ -407,6 +407,7 @@ export interface Database {
                 note: string;
               }[]
             | null;
+          feedback: string | null;
           created_at: Timestamp;
         };
         Insert: {
@@ -438,10 +439,35 @@ export interface Database {
                 note: string;
               }[]
             | null;
+          feedback?: string | null;
           created_at?: Timestamp;
         };
         Update: Partial<
           Database["public"]["Tables"]["frq_questions"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      frq_tutor_notes: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          frq_question_id: string;
+          learner_id: string;
+          tutor_user_id: string;
+          note_text: string;
+          created_at: Timestamp;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          frq_question_id: string;
+          learner_id: string;
+          tutor_user_id: string;
+          note_text: string;
+          created_at?: Timestamp;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["frq_tutor_notes"]["Insert"]
         >;
         Relationships: [];
       };

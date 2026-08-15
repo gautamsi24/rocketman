@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { getSessionLearnerId } from "@/lib/auth/dal";
+import { getSession, getSessionLearnerId } from "@/lib/auth/dal";
 import { getLearnerOrNull, type LearnerProfile } from "@/lib/learners/learner";
+import type { Session } from "@/lib/auth/session";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import { serverErrorResponse } from "./error-response";
@@ -85,6 +86,27 @@ export async function requireLearnerOwnsContext(
   const learnerId = await requireLearnerOwns(resourceLearnerId);
   if (learnerId instanceof NextResponse) return learnerId;
   return buildLearnerContext(learnerId);
+}
+
+export interface TutorContext {
+  session: Session;
+  supabase: Client;
+}
+
+/**
+ * Resolves a tutor-role session, or a ready 401/403 response. Mirrors
+ * requireLearnerContext's shape but for Route Handlers under a tutor role --
+ * requireRole() (lib/auth/require-role.ts) is page-only (it redirect()s),
+ * which isn't the right response for an API route. Tutor access is
+ * tenant-wide, not scoped to a single owned resource like a learner's own
+ * data, so there's no ownership check here beyond the role itself -- routes
+ * that touch a specific learner still verify that learner's tenant matches.
+ */
+export async function requireTutorContext(): Promise<TutorContext | NextResponse> {
+  const session = await getSession();
+  if (!session) return unauthorized();
+  if (session.role !== "tutor") return forbidden();
+  return { session, supabase: createServiceRoleClient() };
 }
 
 /**
