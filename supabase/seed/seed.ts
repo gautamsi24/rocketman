@@ -562,6 +562,13 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "meiosis-variation",
   },
   {
+    code: "heterozygote-is-blended-phenotype",
+    label: "Expects a heterozygote to show a blend of both alleles",
+    description: "Applies blending inheritance to a simple dominant/recessive trait, expecting an intermediate phenotype rather than the dominant allele being fully expressed in the heterozygote.",
+    scope: "content",
+    relatedConceptKey: "mendelian-genetics",
+  },
+  {
     code: "punnett-square-predicts-individual-offspring",
     label: "Treats a Punnett-square ratio as a guarantee, not a probability",
     description: "Thinks a predicted 3:1 ratio means exactly 3 of every literal 4 offspring, rather than a probability that only approximates in large samples.",
@@ -581,6 +588,27 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     description: "Assumes every mutation damages an organism, ignoring silent, neutral, and occasionally beneficial mutations.",
     scope: "content",
     relatedConceptKey: "genetics-gene-expression",
+  },
+  {
+    code: "backbone-carries-genetic-information",
+    label: "Thinks the sugar-phosphate backbone stores the genetic code",
+    description: "Locates hereditary information in the backbone, which is chemically identical along the entire strand, rather than in the sequence of nitrogenous bases, which is the part that actually varies.",
+    scope: "content",
+    relatedConceptKey: "dna-rna-structure",
+  },
+  {
+    code: "replication-is-conservative",
+    label: "Thinks replication makes one all-old and one all-new molecule",
+    description: "Describes replication as conservative, producing an intact original plus a wholly new copy, rather than semiconservative, where each daughter molecule keeps one parental strand and one new one.",
+    scope: "content",
+    relatedConceptKey: "dna-replication",
+  },
+  {
+    code: "differentiated-cells-have-different-genes",
+    label: "Thinks specialised cells contain different genes",
+    description: "Explains cell differentiation by different cell types carrying different genes, rather than every somatic cell carrying the same genome and differing only in which genes are expressed.",
+    scope: "content",
+    relatedConceptKey: "gene-regulation",
   },
   {
     code: "evolution-is-goal-directed",
