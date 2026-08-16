@@ -50,7 +50,9 @@ const DEMO_TUTOR_USERNAME = "tutor_demo";
 // Misconceptions the weak profile has demonstrated (early-unit struggles).
 const WEAK_MISCONCEPTION_CODES = [
   "water-polarity-means-charged",
+  "ph-scale-is-linear",
   "monomer-polymer-direction-confusion",
+  "membrane-is-rigid-not-fluid",
   "competitive-vs-noncompetitive-inhibition-confusion",
 ];
 
