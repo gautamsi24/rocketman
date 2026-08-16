@@ -1,6 +1,10 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
-import { processTurnEventFn, sweepStaleTurnEventsFn } from "@/lib/inngest/functions";
+import {
+  compactSessionHistoryFn,
+  processTurnEventFn,
+  sweepStaleTurnEventsFn,
+} from "@/lib/inngest/functions";
 
 // Each step.run below is one HTTP invocation, and process-turn-event does a
 // Gemini structured-output call plus several DB writes. Vercel's default
@@ -11,5 +15,5 @@ export const maxDuration = 60;
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [processTurnEventFn, sweepStaleTurnEventsFn],
+  functions: [processTurnEventFn, compactSessionHistoryFn, sweepStaleTurnEventsFn],
 });

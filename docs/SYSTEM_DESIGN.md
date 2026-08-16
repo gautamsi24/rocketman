@@ -179,18 +179,28 @@ earlier draft used.
 
 Tracks the immediate conversation so replies stay coherent turn to turn.
 
-- **Storage:** none dedicated for v1 — the client (`useChat`) already
-  holds the full message list and resends it each turn; the route handler
-  reconstructs a sliding window from that, no Redis needed at demo scale
-  (§9, A3). The swappable seam is the same one noted in the earlier
-  draft: a real session cache drops in later without touching the agent.
-- **Data:** last 6–8 turns, the currently-selected concept/topic.
-- **History compaction:** once a session runs long, older turns are
-  compacted into a 1–2 sentence rolling meta-summary and kept *above* the
-  sliding window instead of being dropped — this is a technique applied
-  to short-term memory, not a separate memory type, and it's distinct
-  from the long-term Learner Insights below (this summary doesn't need to
-  outlive the session).
+- **Storage:** the sliding window itself needs none — the client
+  (`useChat`) already holds the full message list and resends it each
+  turn; the route handler (`app/api/chat/route.ts`) reconstructs the
+  window from that via `windowMessages` (`lib/agents/tutor/history-window.ts`),
+  no Redis needed at demo scale (§9, A3). The swappable seam is the same
+  one noted in the earlier draft: a real session cache drops in later
+  without touching the agent.
+- **Data:** last 8 turns (`SESSION_HISTORY_WINDOW_TURNS`), the
+  currently-selected concept/topic.
+- **History compaction — implemented, not just designed.** Once a session
+  passes 8 turns, an async Inngest function (`compactSessionHistoryFn`,
+  triggered off the same `turn_event/created` event Signal-Extraction
+  reacts to, independent of it) compacts the turns that fell out of the
+  window into a 1–2 sentence rolling summary and persists it on
+  `sessions.history_summary` — unlike the sliding window, *this* does need
+  a dedicated column, since it must survive across requests rather than
+  being reconstructible from what the client resends. Read back into the
+  prompt as a `# EARLIER IN THIS SESSION` block, kept *above* the sliding
+  window (`lib/agents/tutor/prompt.ts`), never as a fake message in the
+  `messages` array. Session-scoped and ephemeral — distinct from the
+  long-term Learner Insights below, which are learner-scoped and meant to
+  outlive the session; this summary is not.
 
 ### 4.B Long-term structured memory (concept mastery)
 

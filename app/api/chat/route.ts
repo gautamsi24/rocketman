@@ -8,6 +8,10 @@ import {
 } from "ai";
 import { tutorModel } from "@/lib/agents/shared/model";
 import { buildTutorContext } from "@/lib/agents/tutor/context";
+import {
+  SESSION_HISTORY_WINDOW_TURNS,
+  windowMessages,
+} from "@/lib/agents/tutor/history-window";
 import { buildTutorInstructions } from "@/lib/agents/tutor/prompt";
 import { sharePodcastTool, switchConceptTool } from "@/lib/agents/tutor/tools";
 import { requireLearnerId, requireSessionOwner } from "@/lib/api/guards";
@@ -46,16 +50,29 @@ export async function POST(req: Request) {
 
   const learnerMessage = getLatestUserText(messages);
 
+  // Older turns beyond the window are covered by the session's rolling
+  // history_summary (lib/agents/history-compaction) instead of being resent
+  // raw -- keeps per-turn cost from growing unbounded with session length
+  // (SYSTEM_DESIGN.md §4.A).
+  const { data: sessionRow } = await supabase
+    .from("sessions")
+    .select("history_summary")
+    .eq("id", sessionId)
+    .single();
+
   const context = await buildTutorContext(supabase, {
     learnerId,
     conceptId,
     learnerMessage,
+    historySummary: sessionRow?.history_summary ?? null,
   });
 
   const result = streamText({
     model: tutorModel,
     instructions: buildTutorInstructions(context),
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(
+      windowMessages(messages, SESSION_HISTORY_WINDOW_TURNS)
+    ),
     tools: { switch_concept: switchConceptTool, share_podcast: sharePodcastTool },
     onError: ({ error }) => {
       console.error("chat stream error", error);
@@ -80,7 +97,7 @@ export async function POST(req: Request) {
         }
         await inngest.send({
           name: "turn_event/created",
-          data: { turnEventId: turnEvent.id },
+          data: { turnEventId: turnEvent.id, sessionId },
         });
       });
     },

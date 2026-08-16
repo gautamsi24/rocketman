@@ -128,6 +128,19 @@ place to hit rate limits/deprecations instead of three.
   reasoning insights. Explicitly instructed not to restate
   misconceptions (those are already tracked structurally) — different
   evidence type, different agent.
+- **History Compaction is a new LLM-calling entity, but explicitly not a
+  memory write either.** Implementing the conversation-history sliding
+  window design (§4.A) added an async step (`compactSessionHistoryFn`,
+  triggered off the same `turn_event/created` event Signal-Extraction
+  reacts to, independent of it) that folds turns falling out of the
+  window into a 1–2 sentence rolling summary on `sessions.history_summary`.
+  That's a genuinely new agent-shaped LLM call, but it writes a
+  session-scoped, ephemeral field — not `concept_mastery`,
+  `learner_insights`, or `learner_misconceptions` — so it doesn't expand
+  who's allowed to write learner memory, same reasoning as the tutor-notes
+  correction above. Reuses `turn_events` as its transcript source, the
+  same durable per-session log Consolidation already reads, rather than
+  trusting whatever the client happens to resend.
 - **Podcast agent** (on-demand, per-concept, cached forever) —
   different in kind from the other three: not triggered by the
   tutoring loop at all, triggered by a button click, and its whole job

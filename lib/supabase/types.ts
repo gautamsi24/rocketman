@@ -255,6 +255,8 @@ export interface Database {
           started_at: Timestamp;
           ended_at: Timestamp | null;
           status: "active" | "ended";
+          history_summary: string | null;
+          history_summary_turn_count: number;
         };
         Insert: {
           id?: string;
@@ -263,6 +265,8 @@ export interface Database {
           started_at?: Timestamp;
           ended_at?: Timestamp | null;
           status?: "active" | "ended";
+          history_summary?: string | null;
+          history_summary_turn_count?: number;
         };
         Update: Partial<Database["public"]["Tables"]["sessions"]["Insert"]>;
         Relationships: [];

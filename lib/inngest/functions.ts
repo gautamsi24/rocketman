@@ -1,4 +1,5 @@
 import { processTurnEvent } from "@/lib/agents/signal-extraction";
+import { compactSessionHistory } from "@/lib/agents/history-compaction";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { inngest } from "./client";
 
@@ -38,6 +39,28 @@ export const processTurnEventFn = inngest.createFunction(
 );
 
 /**
+ * Compacts a session's older turns into a rolling summary once they fall
+ * outside the sliding window the chat route sends raw (SYSTEM_DESIGN.md
+ * §4.A). Independent of processTurnEventFn -- both just read the already-
+ * inserted turn_events row, neither depends on the other's output -- so
+ * they run as two separate consumers of the same event rather than chained.
+ * A no-op on most turns (see compactSessionHistory), so retries are cheap.
+ */
+export const compactSessionHistoryFn = inngest.createFunction(
+  {
+    id: "compact-session-history",
+    retries: 4,
+    triggers: [{ event: "turn_event/created" }],
+  },
+  async ({ event, step }) => {
+    await step.run("compact-session-history", async () => {
+      const supabase = createServiceRoleClient();
+      await compactSessionHistory(supabase, event.data.sessionId);
+    });
+  }
+);
+
+/**
  * Backstop for turn_events rows whose inngest.send() call itself never
  * reached Inngest (the DB insert succeeded but the enqueue didn't) -- the one
  * failure mode Inngest's own retry logic can't cover, since it was never
@@ -53,7 +76,7 @@ export const sweepStaleTurnEventsFn = inngest.createFunction(
     const stale = await step.run("find-stale-pending", async () => {
       const { data, error } = await supabase
         .from("turn_events")
-        .select("id")
+        .select("id, session_id")
         .eq("status", "pending")
         .lt("created_at", cutoff);
       if (error) throw error;
@@ -63,7 +86,7 @@ export const sweepStaleTurnEventsFn = inngest.createFunction(
     for (const row of stale) {
       await step.sendEvent(`resend-${row.id}`, {
         name: "turn_event/created",
-        data: { turnEventId: row.id },
+        data: { turnEventId: row.id, sessionId: row.session_id },
       });
     }
   }

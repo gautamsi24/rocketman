@@ -37,6 +37,11 @@ export interface TutorContext {
   tutorProfile: TutorProfile;
   marketId: string;
   ageBand: string;
+  // Rolling 1-2 sentence summary of this session's turns that have fallen
+  // outside the sliding window sent raw (lib/agents/tutor/history-window.ts,
+  // lib/agents/history-compaction) -- null until the session is long enough
+  // for anything to have been compacted yet.
+  historySummary: string | null;
 }
 
 export async function buildTutorContext(
@@ -45,6 +50,7 @@ export async function buildTutorContext(
     learnerId: string;
     conceptId: string;
     learnerMessage: string;
+    historySummary: string | null;
   }
 ): Promise<TutorContext> {
   const [concept, adjacentConceptIds, bigIdeaConceptIds, learner, groundingContent] =
@@ -109,5 +115,6 @@ export async function buildTutorContext(
     tutorProfile,
     marketId: learner.marketId,
     ageBand: learner.ageBand,
+    historySummary: params.historySummary,
   };
 }

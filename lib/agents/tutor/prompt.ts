@@ -79,6 +79,10 @@ export function buildTutorInstructions(context: TutorContext): string {
     JSON.stringify(learnerContext, null, 2),
     "```",
     "",
+    context.historySummary
+      ? `# EARLIER IN THIS SESSION\nThis is a summary of earlier turns in this same conversation, no longer shown verbatim below: ${context.historySummary}`
+      : "",
+    "",
     "# CURRENT TASK",
     `Concept: ${conceptLabel(context.concept)} (mastery ${Math.round(context.currentMasteryProb * 100)}%)`,
     groundingText ? `Reference material:\n${groundingText}` : "",
