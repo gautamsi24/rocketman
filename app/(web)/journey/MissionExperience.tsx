@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { ChatPanel, type PanelTopic } from "./ChatPanel";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChatPanel, type PanelTab, type PanelTopic } from "./ChatPanel";
 import { MissionMap } from "./MissionMap";
 import type { JourneyResponse } from "@/lib/journey/types";
 import { cn } from "@/lib/utils";
@@ -16,8 +16,15 @@ export function MissionExperience({
   // full-page refresh.
   const [journey, setJourney] = useState(initialJourney);
   const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
+  // Separate from selectedConceptId -- the panel itself is always visible on
+  // desktop (a two-pane layout), but on mobile it's a full-screen overlay
+  // that must only appear from an explicit tap, not the auto-selected first
+  // topic on landing (that would otherwise hijack the screen on load).
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [tab, setTab] = useState<PanelTab>("chat");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const creatingSessionRef = useRef(false);
+  const didAutoSelectRef = useRef(false);
 
   const refreshJourney = useCallback(() => {
     fetch("/api/journey")
@@ -56,10 +63,24 @@ export function MissionExperience({
   const handleSelectConcept = useCallback(
     (conceptId: string) => {
       setSelectedConceptId(conceptId);
+      setMobilePanelOpen(true);
       ensureSession();
     },
     [ensureSession]
   );
+
+  // Land on the first topic already open, so the panel isn't just a blank
+  // "pick a topic" placeholder -- but only on desktop's two-pane layout
+  // (mobilePanelOpen stays false, see above). listConcepts orders by
+  // unit_code, so units[0].nodes[0] is the curriculum-first topic, not an
+  // arbitrary one.
+  const firstConceptId = journey.units[0]?.nodes[0]?.conceptId ?? null;
+  useEffect(() => {
+    if (didAutoSelectRef.current || !firstConceptId) return;
+    didAutoSelectRef.current = true;
+    setSelectedConceptId(firstConceptId);
+    ensureSession();
+  }, [firstConceptId, ensureSession]);
 
   const topicByConceptId = useMemo(() => {
     const map = new Map<string, PanelTopic>();
@@ -87,20 +108,23 @@ export function MissionExperience({
           journey={journey}
           onSelectConcept={handleSelectConcept}
           selectedConceptId={selectedConceptId}
+          onPodcastCompleted={() => setTab("check")}
         />
       </div>
 
       <aside
         className={cn(
-          "min-h-0 flex-col border-l bg-background lg:flex lg:w-[420px] lg:static lg:z-auto",
-          selectedConceptId ? "fixed inset-0 z-50 flex" : "hidden"
+          "min-h-0 flex-col border-l bg-background lg:flex lg:flex-1 lg:static lg:z-auto",
+          mobilePanelOpen ? "fixed inset-0 z-50 flex" : "hidden"
         )}
       >
         <ChatPanel
-          onClose={() => setSelectedConceptId(null)}
+          onClose={() => setMobilePanelOpen(false)}
           onConceptSwitch={setSelectedConceptId}
           onMasteryChanged={refreshJourney}
           sessionId={sessionId}
+          tab={tab}
+          onTabChange={setTab}
           topic={selectedTopic}
         />
       </aside>

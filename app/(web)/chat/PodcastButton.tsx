@@ -10,10 +10,18 @@ type Status = "idle" | "loading" | "playing";
 
 export function PodcastButton({
   conceptId,
+  onStart,
   onCompleted,
+  size,
 }: {
   conceptId: string | null;
+  // Fired once, right when playback actually begins (not on the
+  // stop-toggle path) -- lets a caller outside the panel (e.g. a topic card
+  // in the mission map) select/open the topic at the moment it starts
+  // playing, without the button needing to know anything about selection.
+  onStart?: () => void;
   onCompleted?: () => void;
+  size?: "default" | "sm";
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -54,6 +62,7 @@ export function PodcastButton({
       return;
     }
 
+    onStart?.();
     setStatus("loading");
     try {
       const url = await fetchPodcastAudioUrl(conceptId);
@@ -77,7 +86,19 @@ export function PodcastButton({
   };
 
   return (
-    <Button variant="outline" onClick={play} disabled={!conceptId}>
+    <Button
+      variant="outline"
+      size={size}
+      onClick={play}
+      disabled={!conceptId}
+      aria-label={
+        status === "loading"
+          ? "Generating podcast"
+          : status === "playing"
+            ? "Stop podcast"
+            : "Podcast"
+      }
+    >
       {status === "loading" ? (
         <Loader2Icon className="animate-spin" size={16} />
       ) : status === "playing" ? (
@@ -85,11 +106,7 @@ export function PodcastButton({
       ) : (
         <Volume2Icon size={16} />
       )}
-      {status === "loading"
-        ? "Generating podcast..."
-        : status === "playing"
-          ? "Stop podcast"
-          : "Listen to podcast"}
+      Podcast
     </Button>
   );
 }

@@ -1,8 +1,14 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { StandaloneMicButton } from "../chat/MicButton";
 import { usePromptInputController } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
 import { useResource } from "@/hooks/use-resource";
 import { cn } from "@/lib/utils";
 
@@ -118,13 +124,38 @@ export function CheckYourself({
         ) : null}
       </div>
 
-      <textarea
-        className="min-h-40 w-full resize-y rounded-lg border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
-        placeholder="Answer in your own words..."
-        value={answer}
-        onChange={(event) => setAnswer(event.target.value)}
-        disabled={status !== "idle"}
-      />
+      {/* Same InputGroup primitive the chat box uses, so the mic sits inside
+          the same bordered box (bottom-right) instead of floating below it. */}
+      <InputGroup>
+        <InputGroupTextarea
+          className="min-h-40 resize-y"
+          placeholder="Answer in your own words..."
+          value={answer}
+          onChange={(event) => setAnswer(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter submits, Shift+Enter for a newline -- same contract as
+            // the chat input. Respects IME composition so accepting a
+            // composed character (e.g. CJK input) doesn't submit early.
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              if (answer.trim() && status === "idle") submit();
+            }
+          }}
+          disabled={status !== "idle"}
+        />
+        <InputGroupAddon align="block-end" className="justify-end">
+          <StandaloneMicButton
+            disabled={status !== "idle"}
+            onTranscript={(transcript) =>
+              setAnswer((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript))
+            }
+          />
+        </InputGroupAddon>
+      </InputGroup>
 
       {status === "done" && verdict ? (
         <div

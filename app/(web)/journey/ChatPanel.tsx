@@ -1,10 +1,8 @@
 "use client";
 
 import { MessagesSquareIcon, XIcon } from "lucide-react";
-import { useState } from "react";
 import { CheckYourself } from "./CheckYourself";
 import { ChatWindow } from "../chat/ChatWindow";
-import { PodcastButton } from "../chat/PodcastButton";
 import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,24 +14,29 @@ export interface PanelTopic {
   scope: "content" | "practice";
 }
 
-type PanelTab = "chat" | "check";
+export type PanelTab = "chat" | "check";
 
 export function ChatPanel({
   sessionId,
   topic,
+  tab,
+  onTabChange,
   onConceptSwitch,
   onMasteryChanged,
   onClose,
 }: {
   sessionId: string | null;
   topic: PanelTopic | null;
+  // Lifted up to MissionExperience -- a podcast started from a topic card in
+  // the mission map (not this panel) can still jump to Quick check on
+  // completion, since both read/write the same state.
+  tab: PanelTab;
+  onTabChange: (tab: PanelTab) => void;
   onConceptSwitch: (conceptId: string) => void;
   // A graded check answer moved mastery -- ask the map to refetch.
   onMasteryChanged: () => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<PanelTab>("chat");
-
   if (!topic) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -60,19 +63,6 @@ export function ChatPanel({
           <p className="truncate text-sm font-semibold">{topic.label}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {/* Practice skills (Argumentation, Questions & Methods) are
-              interactive-only -- a passive podcast doesn't fit a reasoning
-              skill, so it's hidden for practice-scope topics. When a content
-              podcast finishes, jump the learner straight to a check question. */}
-          {topic.scope === "content" ? (
-            // Keyed by concept so switching topics remounts it -- the old
-            // podcast stops (cleanup) instead of playing on under a new topic.
-            <PodcastButton
-              key={topic.conceptId}
-              conceptId={topic.conceptId}
-              onCompleted={() => setTab("check")}
-            />
-          ) : null}
           <Button
             aria-label="Close chat"
             className="lg:hidden"
@@ -94,7 +84,7 @@ export function ChatPanel({
             <button
               key={value}
               type="button"
-              onClick={() => setTab(value)}
+              onClick={() => onTabChange(value)}
               className={cn(
                 "rounded-md px-3 py-1.5 text-sm transition-colors",
                 tab === value
@@ -140,7 +130,7 @@ export function ChatPanel({
               <CheckYourself
                 key={topic.conceptId}
                 conceptId={topic.conceptId}
-                onExplore={() => setTab("chat")}
+                onExplore={() => onTabChange("chat")}
                 onMasteryChanged={onMasteryChanged}
               />
             </div>
