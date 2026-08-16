@@ -513,11 +513,32 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "cellular-energetics",
   },
   {
+    code: "glycolysis-produces-most-atp",
+    label: "Thinks most ATP comes from glycolysis",
+    description: "Credits glycolysis with the bulk of the ATP yield rather than oxidative phosphorylation at the electron transport chain -- glycolysis nets only a small fraction of the ATP produced per glucose.",
+    scope: "content",
+    relatedConceptKey: "cellular-respiration",
+  },
+  {
+    code: "plants-do-not-respire",
+    label: "Thinks plants photosynthesise instead of respiring",
+    description: "Treats photosynthesis as the plant's substitute for cellular respiration, or assumes plants respire only at night -- misses that plant cells respire continuously to release usable energy from the sugars they make.",
+    scope: "content",
+    relatedConceptKey: "photosynthesis",
+  },
+  {
     code: "signal-must-enter-cell-to-act",
     label: "Thinks the signaling molecule must enter the cell",
     description: "Believes a ligand must physically cross the membrane to cause a response, rather than binding a surface receptor and triggering an internal cascade without entering.",
     scope: "content",
     relatedConceptKey: "signal-transduction",
+  },
+  {
+    code: "negative-feedback-means-harmful",
+    label: "Reads 'negative feedback' as a bad outcome",
+    description: "Interprets 'negative' as damaging rather than change-opposing -- misses that negative feedback is the stabilising mechanism that returns a system toward its set point.",
+    scope: "content",
+    relatedConceptKey: "feedback-mechanisms",
   },
   {
     code: "cancer-is-foreign-invader",
