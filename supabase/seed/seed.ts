@@ -611,6 +611,27 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "gene-regulation",
   },
   {
+    code: "fittest-means-strongest",
+    label: "Thinks 'fittest' means strongest or healthiest",
+    description: "Equates evolutionary fitness with physical strength or general health, rather than reproductive success in a particular environment -- a small, physically weak organism that leaves more offspring is fitter.",
+    scope: "content",
+    relatedConceptKey: "natural-selection",
+  },
+  {
+    code: "homologous-analogous-confusion",
+    label: "Treats shared function as evidence of common ancestry",
+    description: "Infers relatedness from similar function, conflating analogous structures produced by convergent evolution with homologous structures genuinely inherited from a shared ancestor.",
+    scope: "content",
+    relatedConceptKey: "evidence-for-evolution",
+  },
+  {
+    code: "cladogram-tips-descend-from-each-other",
+    label: "Reads a cladogram as a ladder from older to newer species",
+    description: "Interprets living species at the tips as having descended from one another, or reads position further right as more advanced, rather than reading shared ancestry from where branches split.",
+    scope: "content",
+    relatedConceptKey: "phylogeny",
+  },
+  {
     code: "evolution-is-goal-directed",
     label: "Thinks organisms evolve traits because they need them",
     description: 'Teleological misconception -- e.g. "giraffes evolved long necks because they needed to reach high leaves" -- rather than variation existing first and being differentially selected.',
@@ -625,6 +646,13 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "evolution",
   },
   {
+    code: "tropisms-are-deliberate-movement",
+    label: "Describes a plant as choosing to move toward light",
+    description: "Frames a tropism as intentional movement by the plant, rather than differential growth caused by uneven auxin distribution on the shaded and lit sides of the stem.",
+    scope: "content",
+    relatedConceptKey: "environmental-responses",
+  },
+  {
     code: "energy-cycles-like-matter",
     label: "Thinks energy cycles through an ecosystem like matter does",
     description: "Assumes energy is recycled between trophic levels the way nutrients/matter are, rather than flowing one-way and dissipating as heat at each transfer.",
@@ -637,6 +665,20 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     description: "Doesn't distinguish a population (one species in an area) from a community (all species in an area) as levels of ecological organization.",
     scope: "content",
     relatedConceptKey: "ecology",
+  },
+  {
+    code: "niche-equals-habitat",
+    label: "Uses niche and habitat to mean the same thing",
+    description: "Treats a niche as simply where an organism lives, rather than its full functional role -- what it consumes, what consumes it, and how it interacts with the rest of the community.",
+    scope: "content",
+    relatedConceptKey: "community-ecology",
+  },
+  {
+    code: "biodiversity-is-only-species-count",
+    label: "Thinks biodiversity just means the number of species",
+    description: "Reduces biodiversity to species richness alone, ignoring how evenly individuals are distributed among those species and the genetic and ecosystem diversity that also count.",
+    scope: "content",
+    relatedConceptKey: "biodiversity",
   },
   {
     code: "support-vs-justify-conflation",
