@@ -647,7 +647,7 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
   },
   {
     code: "tropisms-are-deliberate-movement",
-    label: "Describes a plant as choosing to move toward light",
+    label: "Treats a plant as choosing to move toward light",
     description: "Frames a tropism as intentional movement by the plant, rather than differential growth caused by uneven auxin distribution on the shaded and lit sides of the stem.",
     scope: "content",
     relatedConceptKey: "environmental-responses",
