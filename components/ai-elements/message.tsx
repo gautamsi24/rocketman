@@ -28,7 +28,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Streamdown } from "streamdown";
+import { Streamdown, type MermaidErrorComponentProps } from "streamdown";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -326,6 +326,25 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 const math = createMathPlugin({ singleDollarTextMath: true });
 const streamdownPlugins = { cjk, code, math, mermaid };
 
+// Streamdown's default mermaid error state surfaces the raw parser error
+// ("Expecting 'SEMI', 'NEWLINE', ... got 'PS'") -- meaningless to a learner
+// and reads as the app being broken. A syntax error means the diagram is
+// genuinely unparseable, not transiently broken, so there's no useful retry;
+// just say so plainly and keep the source available for debugging without
+// dumping it in front of the reader by default.
+const MermaidErrorFallback = ({ chart }: MermaidErrorComponentProps) => (
+  <div className="rounded-lg border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
+    <p>Couldn&apos;t render this diagram.</p>
+    <details className="mt-2">
+      <summary className="cursor-pointer text-xs">Show diagram source</summary>
+      <pre className="mt-2 overflow-x-auto rounded bg-background p-2 text-xs">
+        {chart}
+      </pre>
+    </details>
+  </div>
+);
+const mermaidOptions = { errorComponent: MermaidErrorFallback };
+
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
@@ -334,6 +353,7 @@ export const MessageResponse = memo(
         className
       )}
       plugins={streamdownPlugins}
+      mermaid={mermaidOptions}
       {...props}
     />
   ),

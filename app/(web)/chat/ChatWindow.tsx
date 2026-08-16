@@ -178,7 +178,7 @@ export function ChatWindow({
           <PromptInputTextarea
             placeholder={
               conceptId
-                ? "Argumentation or Questions"
+                ? "Ask the AI tutor on the topic..."
                 : "Pick a topic to get started"
             }
             disabled={!conceptId}
