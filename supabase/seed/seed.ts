@@ -50,7 +50,9 @@ const DEMO_TUTOR_USERNAME = "tutor_demo";
 // Misconceptions the weak profile has demonstrated (early-unit struggles).
 const WEAK_MISCONCEPTION_CODES = [
   "water-polarity-means-charged",
+  "ph-scale-is-linear",
   "monomer-polymer-direction-confusion",
+  "membrane-is-rigid-not-fluid",
   "competitive-vs-noncompetitive-inhibition-confusion",
 ];
 
@@ -436,6 +438,20 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "macromolecule-structure-function",
   },
   {
+    code: "ph-scale-is-linear",
+    label: "Thinks each pH step is one unit of acidity, not a tenfold change",
+    description: "Treats pH as a linear scale, so pH 4 is read as twice as acidic as pH 8 rather than ten thousand times -- misses that each whole pH unit is a tenfold change in hydrogen ion concentration.",
+    scope: "content",
+    relatedConceptKey: "ph-buffers",
+  },
+  {
+    code: "buffer-prevents-all-ph-change",
+    label: "Thinks a buffer holds pH perfectly constant",
+    description: "Believes a buffered solution cannot change pH at all, rather than resisting change within a limited capacity that is exhausted once enough acid or base is added.",
+    scope: "content",
+    relatedConceptKey: "ph-buffers",
+  },
+  {
     code: "ribosome-synthesize-vs-secrete-confusion",
     label: "Thinks ribosomes secrete proteins rather than synthesize them",
     description: '"Ribosomes make amino acids" / secrete-vs-synthesize confusion at the organelle level.',
@@ -448,6 +464,41 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     description: "Doesn't connect surface-area-to-volume ratio to diffusion/exchange efficiency, so doesn't understand why cells can't just keep growing larger.",
     scope: "content",
     relatedConceptKey: "cell-structure",
+  },
+  {
+    code: "prokaryotes-have-no-internal-structures",
+    label: "Thinks prokaryotic cells are empty bags with nothing inside",
+    description: "Reads 'no membrane-bound organelles' as 'no internal structures at all' -- overlooks that prokaryotes still have ribosomes, a nucleoid region holding their DNA, and a cytoskeleton.",
+    scope: "content",
+    relatedConceptKey: "cell-types",
+  },
+  {
+    code: "prokaryotes-are-primitive-ancestors",
+    label: "Thinks prokaryotes are primitive cells still becoming eukaryotes",
+    description: "Treats prokaryotes as an unfinished earlier stage on a ladder toward eukaryotes, rather than a separate lineage that has been evolving just as long and is highly successful on its own terms.",
+    scope: "content",
+    relatedConceptKey: "cell-types",
+  },
+  {
+    code: "membrane-is-rigid-not-fluid",
+    label: "Pictures the membrane as a solid wall rather than a fluid layer",
+    description: "Treats the phospholipid bilayer as a fixed structure with proteins locked in place, rather than a fluid mosaic in which lipids and most proteins drift laterally within the layer.",
+    scope: "content",
+    relatedConceptKey: "cell-membrane",
+  },
+  {
+    code: "phospholipid-head-tail-polarity-reversed",
+    label: "Reverses which end of a phospholipid is water-attracting",
+    description: "Assigns hydrophobic character to the phosphate head and hydrophilic character to the fatty acid tails -- the reverse of the real arrangement that drives a bilayer to form in water.",
+    scope: "content",
+    relatedConceptKey: "cell-membrane",
+  },
+  {
+    code: "facilitated-diffusion-requires-atp",
+    label: "Thinks any transport through a protein costs energy",
+    description: "Conflates facilitated diffusion with active transport, assuming a channel or carrier protein must consume ATP -- misses that facilitated diffusion still moves solutes down their concentration gradient for free.",
+    scope: "content",
+    relatedConceptKey: "membrane-transport",
   },
   {
     code: "competitive-vs-noncompetitive-inhibition-confusion",
@@ -464,11 +515,32 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "cellular-energetics",
   },
   {
+    code: "glycolysis-produces-most-atp",
+    label: "Thinks most ATP comes from glycolysis",
+    description: "Credits glycolysis with the bulk of the ATP yield rather than oxidative phosphorylation at the electron transport chain -- glycolysis nets only a small fraction of the ATP produced per glucose.",
+    scope: "content",
+    relatedConceptKey: "cellular-respiration",
+  },
+  {
+    code: "plants-do-not-respire",
+    label: "Thinks plants photosynthesise instead of respiring",
+    description: "Treats photosynthesis as the plant's substitute for cellular respiration, or assumes plants respire only at night -- misses that plant cells respire continuously to release usable energy from the sugars they make.",
+    scope: "content",
+    relatedConceptKey: "photosynthesis",
+  },
+  {
     code: "signal-must-enter-cell-to-act",
     label: "Thinks the signaling molecule must enter the cell",
     description: "Believes a ligand must physically cross the membrane to cause a response, rather than binding a surface receptor and triggering an internal cascade without entering.",
     scope: "content",
     relatedConceptKey: "signal-transduction",
+  },
+  {
+    code: "negative-feedback-means-harmful",
+    label: "Reads 'negative feedback' as a bad outcome",
+    description: "Interprets 'negative' as damaging rather than change-opposing -- misses that negative feedback is the stabilising mechanism that returns a system toward its set point.",
+    scope: "content",
+    relatedConceptKey: "feedback-mechanisms",
   },
   {
     code: "cancer-is-foreign-invader",
@@ -492,6 +564,13 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "meiosis-variation",
   },
   {
+    code: "heterozygote-is-blended-phenotype",
+    label: "Expects a heterozygote to show a blend of both alleles",
+    description: "Applies blending inheritance to a simple dominant/recessive trait, expecting an intermediate phenotype rather than the dominant allele being fully expressed in the heterozygote.",
+    scope: "content",
+    relatedConceptKey: "mendelian-genetics",
+  },
+  {
     code: "punnett-square-predicts-individual-offspring",
     label: "Treats a Punnett-square ratio as a guarantee, not a probability",
     description: "Thinks a predicted 3:1 ratio means exactly 3 of every literal 4 offspring, rather than a probability that only approximates in large samples.",
@@ -513,6 +592,48 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "genetics-gene-expression",
   },
   {
+    code: "backbone-carries-genetic-information",
+    label: "Thinks the sugar-phosphate backbone stores the genetic code",
+    description: "Locates hereditary information in the backbone, which is chemically identical along the entire strand, rather than in the sequence of nitrogenous bases, which is the part that actually varies.",
+    scope: "content",
+    relatedConceptKey: "dna-rna-structure",
+  },
+  {
+    code: "replication-is-conservative",
+    label: "Thinks replication makes one all-old and one all-new molecule",
+    description: "Describes replication as conservative, producing an intact original plus a wholly new copy, rather than semiconservative, where each daughter molecule keeps one parental strand and one new one.",
+    scope: "content",
+    relatedConceptKey: "dna-replication",
+  },
+  {
+    code: "differentiated-cells-have-different-genes",
+    label: "Thinks specialised cells contain different genes",
+    description: "Explains cell differentiation by different cell types carrying different genes, rather than every somatic cell carrying the same genome and differing only in which genes are expressed.",
+    scope: "content",
+    relatedConceptKey: "gene-regulation",
+  },
+  {
+    code: "fittest-means-strongest",
+    label: "Thinks 'fittest' means strongest or healthiest",
+    description: "Equates evolutionary fitness with physical strength or general health, rather than reproductive success in a particular environment -- a small, physically weak organism that leaves more offspring is fitter.",
+    scope: "content",
+    relatedConceptKey: "natural-selection",
+  },
+  {
+    code: "homologous-analogous-confusion",
+    label: "Treats shared function as evidence of common ancestry",
+    description: "Infers relatedness from similar function, conflating analogous structures produced by convergent evolution with homologous structures genuinely inherited from a shared ancestor.",
+    scope: "content",
+    relatedConceptKey: "evidence-for-evolution",
+  },
+  {
+    code: "cladogram-tips-descend-from-each-other",
+    label: "Reads a cladogram as a ladder from older to newer species",
+    description: "Interprets living species at the tips as having descended from one another, or reads position further right as more advanced, rather than reading shared ancestry from where branches split.",
+    scope: "content",
+    relatedConceptKey: "phylogeny",
+  },
+  {
     code: "evolution-is-goal-directed",
     label: "Thinks organisms evolve traits because they need them",
     description: 'Teleological misconception -- e.g. "giraffes evolved long necks because they needed to reach high leaves" -- rather than variation existing first and being differentially selected.',
@@ -527,6 +648,13 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     relatedConceptKey: "evolution",
   },
   {
+    code: "tropisms-are-deliberate-movement",
+    label: "Treats a plant as choosing to move toward light",
+    description: "Frames a tropism as intentional movement by the plant, rather than differential growth caused by uneven auxin distribution on the shaded and lit sides of the stem.",
+    scope: "content",
+    relatedConceptKey: "environmental-responses",
+  },
+  {
     code: "energy-cycles-like-matter",
     label: "Thinks energy cycles through an ecosystem like matter does",
     description: "Assumes energy is recycled between trophic levels the way nutrients/matter are, rather than flowing one-way and dissipating as heat at each transfer.",
@@ -539,6 +667,20 @@ const MISCONCEPTIONS: MisconceptionSeed[] = [
     description: "Doesn't distinguish a population (one species in an area) from a community (all species in an area) as levels of ecological organization.",
     scope: "content",
     relatedConceptKey: "ecology",
+  },
+  {
+    code: "niche-equals-habitat",
+    label: "Uses niche and habitat to mean the same thing",
+    description: "Treats a niche as simply where an organism lives, rather than its full functional role -- what it consumes, what consumes it, and how it interacts with the rest of the community.",
+    scope: "content",
+    relatedConceptKey: "community-ecology",
+  },
+  {
+    code: "biodiversity-is-only-species-count",
+    label: "Thinks biodiversity just means the number of species",
+    description: "Reduces biodiversity to species richness alone, ignoring how evenly individuals are distributed among those species and the genetic and ecosystem diversity that also count.",
+    scope: "content",
+    relatedConceptKey: "biodiversity",
   },
   {
     code: "support-vs-justify-conflation",
