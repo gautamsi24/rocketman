@@ -55,12 +55,48 @@ alter table concept_transfer enable row level security;
 -- two of the four evidence sources have a recoverable history -- the corpus
 -- starts populated rather than empty. Chat turns cannot be backfilled: their
 -- labels were never persisted.
+--
+-- Guarded so re-running is a no-op, matching the two migrations it reads from
+-- (20260812, 20260813), both written to be safe when pasted into the SQL
+-- editor. Without the guard a second paste duplicates the entire corpus.
+--
+-- The qna filter mirrors check-answer's own rule: only the FIRST answered
+-- question with a given question_hash fed BKT, and later repeats were returned
+-- as counted: false. Backfilling those repeats would make historical rows mean
+-- something different from live ones, and a replay of the ledger would no
+-- longer reproduce concept_mastery.
 insert into kt_interactions (tenant_id, learner_id, concept_id, correct, source, created_at)
-select tenant_id, learner_id, concept_id, correct, 'qna', coalesce(answered_at, created_at)
-from qna_attempts
-where answered_at is not null and correct is not null;
+select q.tenant_id, q.learner_id, q.concept_id, q.correct, 'qna',
+       coalesce(q.answered_at, q.created_at)
+from qna_attempts q
+where q.answered_at is not null
+  and q.correct is not null
+  and not exists (
+    select 1 from qna_attempts earlier
+    where earlier.learner_id = q.learner_id
+      and earlier.concept_id = q.concept_id
+      and earlier.question_hash = q.question_hash
+      and earlier.answered_at is not null
+      and earlier.answered_at < q.answered_at
+  )
+  and not exists (
+    select 1 from kt_interactions k
+    where k.learner_id = q.learner_id
+      and k.concept_id = q.concept_id
+      and k.source = 'qna'
+      and k.created_at = coalesce(q.answered_at, q.created_at)
+  );
 
 insert into kt_interactions (tenant_id, learner_id, concept_id, correct, source, created_at)
-select tenant_id, learner_id, concept_id, correct, 'frq', coalesce(answered_at, created_at)
-from frq_questions
-where answered_at is not null and correct is not null;
+select f.tenant_id, f.learner_id, f.concept_id, f.correct, 'frq',
+       coalesce(f.answered_at, f.created_at)
+from frq_questions f
+where f.answered_at is not null
+  and f.correct is not null
+  and not exists (
+    select 1 from kt_interactions k
+    where k.learner_id = f.learner_id
+      and k.concept_id = f.concept_id
+      and k.source = 'frq'
+      and k.created_at = coalesce(f.answered_at, f.created_at)
+  );

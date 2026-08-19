@@ -205,14 +205,20 @@ export async function getMasteryTrend(
   // questions, and the trend view only ever renders recent movement anyway.
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
+  // Ordered descending so the cap keeps the NEWEST rows, then reversed for the
+  // ascending series the chart expects. Ordering ascending with a limit would
+  // keep the oldest rows instead, freezing the trend at the moment the cap was
+  // first hit and hiding every subsequent gain -- the opposite of the intent.
+  const { data: rows, error } = await supabase
     .from("concept_mastery_history")
     .select("concept_id, mastery_prob, recorded_at")
     .eq("learner_id", learnerId)
     .gte("recorded_at", since)
-    .order("recorded_at", { ascending: true })
+    .order("recorded_at", { ascending: false })
     .limit(2000);
   if (error) throw error;
+
+  const data = (rows ?? []).slice().reverse();
 
   const pointsByConceptId = new Map<string, MasteryTrendSeries["points"]>();
   for (const row of data ?? []) {
