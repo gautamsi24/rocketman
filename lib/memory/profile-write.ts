@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bktUpdate } from "@/lib/bkt/engine";
 import type { BktParams, Evidence, MasteryState } from "@/lib/bkt/types";
+import { getTransferTargets } from "@/lib/curriculum/transfer";
+import {
+  recordInteraction,
+  type InteractionSource,
+} from "@/lib/memory/interactions";
 import type { Database } from "@/lib/supabase/types";
 
 type Client = SupabaseClient<Database>;
@@ -110,6 +115,55 @@ async function applyEvidence(
   return nextState;
 }
 
+/**
+ * Applies a damped version of the same graded evidence to a related concept.
+ *
+ * Deliberately writes only mastery_prob. It never increments `attempts`, so
+ * MIN_ATTEMPTS_FOR_COMPLETION keeps guaranteeing that no concept reaches
+ * "complete" without real answers on it -- indirect evidence can never unlock
+ * the mission map. It never touches last_practiced_at either, so decay isn't
+ * defeated by a topic the learner has not actually practised.
+ */
+async function applyTransferredEvidence(
+  supabase: Client,
+  params: {
+    tenantId: string;
+    learnerId: string;
+    conceptId: string;
+    weight: number;
+    correct: boolean;
+  }
+): Promise<void> {
+  const bktParams = await getBktParams(supabase, params.conceptId);
+  const prior = await getPriorState(
+    supabase,
+    params.learnerId,
+    params.conceptId,
+    bktParams.pInit
+  );
+
+  const direct = bktUpdate(prior, bktParams, {
+    kind: "graded",
+    correct: params.correct,
+  });
+  const masteryProb =
+    prior.masteryProb + params.weight * (direct.masteryProb - prior.masteryProb);
+
+  const { error } = await supabase.from("concept_mastery").upsert(
+    {
+      tenant_id: params.tenantId,
+      learner_id: params.learnerId,
+      concept_id: params.conceptId,
+      mastery_prob: masteryProb,
+      confidence: prior.confidence,
+      attempts: prior.attempts,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "learner_id,concept_id" }
+  );
+  if (error) throw error;
+}
+
 export async function applyGradedUpdate(
   supabase: Client,
   params: {
@@ -117,14 +171,52 @@ export async function applyGradedUpdate(
     learnerId: string;
     conceptId: string;
     correct: boolean;
+    source?: InteractionSource;
+    labelRationale?: string | null;
+    turnEventId?: string | null;
   }
 ): Promise<MasteryState> {
-  return applyEvidence(supabase, {
+  const state = await applyEvidence(supabase, {
     tenantId: params.tenantId,
     learnerId: params.learnerId,
     conceptId: params.conceptId,
     evidence: { kind: "graded", correct: params.correct },
   });
+
+  await recordInteraction(supabase, {
+    tenantId: params.tenantId,
+    learnerId: params.learnerId,
+    conceptId: params.conceptId,
+    correct: params.correct,
+    source: params.source ?? "chat",
+    labelRationale: params.labelRationale,
+    turnEventId: params.turnEventId,
+  });
+
+  // One hop only: applyTransferredEvidence calls bktUpdate directly and never
+  // re-enters this function, so transfer never cascades.
+  const targets = await getTransferTargets(
+    supabase,
+    params.tenantId,
+    params.conceptId
+  );
+  for (const target of targets) {
+    try {
+      await applyTransferredEvidence(supabase, {
+        tenantId: params.tenantId,
+        learnerId: params.learnerId,
+        conceptId: target.relatedConceptId,
+        weight: target.weight,
+        correct: params.correct,
+      });
+    } catch (err) {
+      // The direct grade is the user-visible effect and is already persisted.
+      // A failed secondary write must not lose it.
+      console.error("transfer propagation failed", target.relatedConceptId, err);
+    }
+  }
+
+  return state;
 }
 
 export async function applyLearnerAssertion(

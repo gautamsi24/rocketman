@@ -103,6 +103,7 @@ export async function POST(
         learnerId,
         conceptId,
         correct: grade.correct,
+        source: "qna",
       });
     } catch (err) {
       return serverErrorResponse(err);
