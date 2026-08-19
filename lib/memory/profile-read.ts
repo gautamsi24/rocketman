@@ -199,11 +199,19 @@ export async function getMasteryTrend(
   supabase: Client,
   learnerId: string
 ): Promise<MasteryTrendSeries[]> {
+  // Bounded deliberately. This previously selected a learner's entire history
+  // with no window and no cap, which was survivable when one graded answer
+  // wrote one row. It no longer is: a batch FRQ submission grades six
+  // questions, and the trend view only ever renders recent movement anyway.
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from("concept_mastery_history")
     .select("concept_id, mastery_prob, recorded_at")
     .eq("learner_id", learnerId)
-    .order("recorded_at", { ascending: true });
+    .gte("recorded_at", since)
+    .order("recorded_at", { ascending: true })
+    .limit(2000);
   if (error) throw error;
 
   const pointsByConceptId = new Map<string, MasteryTrendSeries["points"]>();
