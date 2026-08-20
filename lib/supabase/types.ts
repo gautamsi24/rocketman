@@ -119,6 +119,56 @@ export interface Database {
         >;
         Relationships: [];
       };
+      concept_transfer: {
+        Row: {
+          tenant_id: string;
+          concept_id: string;
+          related_concept_id: string;
+          weight: number;
+          source: "curriculum_graph" | "dkvmn_derived";
+          created_at: Timestamp;
+        };
+        Insert: {
+          tenant_id: string;
+          concept_id: string;
+          related_concept_id: string;
+          weight: number;
+          source?: "curriculum_graph" | "dkvmn_derived";
+          created_at?: Timestamp;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["concept_transfer"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      kt_interactions: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          learner_id: string;
+          concept_id: string;
+          correct: boolean;
+          source: "chat" | "qna" | "frq" | "assertion";
+          label_rationale: string | null;
+          turn_event_id: string | null;
+          created_at: Timestamp;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          learner_id: string;
+          concept_id: string;
+          correct: boolean;
+          source: "chat" | "qna" | "frq" | "assertion";
+          label_rationale?: string | null;
+          turn_event_id?: string | null;
+          created_at?: Timestamp;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["kt_interactions"]["Insert"]
+        >;
+        Relationships: [];
+      };
       misconceptions: {
         Row: {
           id: string;

@@ -1058,6 +1058,8 @@ const CALIBRATED_HARD_CONCEPTS = new Set([
 // Every tenant-scoped table, ordered children-before-parents so a wipe never
 // violates a foreign key.
 const TENANT_TABLES = [
+  // Before turn_events, learners and concepts -- it references all three.
+  "kt_interactions",
   "frq_questions",
   "qna_attempts",
   "turn_events",
@@ -1069,6 +1071,7 @@ const TENANT_TABLES = [
   "concept_podcasts",
   "curriculum_items",
   "concept_prerequisites",
+  "concept_transfer",
   "bkt_concept_params",
   "misconceptions",
   "sessions",
@@ -1313,6 +1316,36 @@ async function main() {
     if (error) throw error;
   }
   console.log(`Seeded ${contentConcepts.length - 1} prerequisite links`);
+
+  // Transfer v1: two concepts sharing both a Big Idea and a unit are treated as
+  // partially the same skill, so graded evidence on one damps into the others.
+  //
+  // Deliberately NOT derived from concept_prerequisites above -- that is a
+  // linear spine encoding order, so it would claim membrane-transport and
+  // cellular-energetics share a skill purely because they are adjacent in the
+  // sequence. Big Idea alone is too coarse in the other direction (SYI spans
+  // Chemistry of Life, Cell Structure and Ecology), which is why both must match.
+  const TRANSFER_WEIGHT = 0.3;
+  const transferRows = [];
+  for (const a of contentConcepts) {
+    if (a.unitCode === null || a.bigIdeaCode === null) continue;
+    for (const b of contentConcepts) {
+      if (a.key === b.key) continue;
+      if (a.unitCode !== b.unitCode || a.bigIdeaCode !== b.bigIdeaCode) continue;
+      transferRows.push({
+        tenant_id: tenantId,
+        concept_id: conceptIdByKey.get(a.key)!,
+        related_concept_id: conceptIdByKey.get(b.key)!,
+        weight: TRANSFER_WEIGHT,
+        source: "curriculum_graph" as const,
+      });
+    }
+  }
+  if (transferRows.length > 0) {
+    const { error } = await supabase.from("concept_transfer").insert(transferRows);
+    if (error) throw error;
+  }
+  console.log(`Seeded ${transferRows.length} concept_transfer edges`);
 
   for (const concept of CONCEPTS) {
     const conceptId = conceptIdByKey.get(concept.key)!;

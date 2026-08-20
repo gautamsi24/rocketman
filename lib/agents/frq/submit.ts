@@ -154,6 +154,7 @@ export async function submitFrqAnswer(
         learnerId: params.learnerId,
         conceptId: question.conceptId,
         correct,
+        source: "frq",
       });
 
       // Same misconception-evidence path chat turns feed (Signal-Extraction)

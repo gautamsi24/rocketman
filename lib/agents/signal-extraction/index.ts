@@ -95,6 +95,9 @@ export async function processTurnEvent(
       learnerId: turnEvent.learner_id,
       conceptId,
       correct: output.correctness === "correct",
+      source: "chat",
+      labelRationale: output.rationale,
+      turnEventId: turnEvent.id,
     });
   }
 
